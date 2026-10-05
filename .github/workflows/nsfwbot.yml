@@ -1,0 +1,32 @@
+name: NSFW-Bot 7-24
+on:
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+jobs:
+  nsfwbot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Bagimliliklari kur
+        working-directory: ./KrX
+        run: npm install
+      - name: config.json olustur
+        working-directory: ./KrX
+        run: |
+          cat > config.json <<EOF
+          {
+            "token": "${{ secrets.NSFWBOT_TOKEN }}",
+            "clientId": "1244369544500215859",
+            "sightengine_user": "${{ secrets.SIGHTENGINE_USER }}",
+            "sightengine_secret": "${{ secrets.SIGHTENGINE_SECRET }}"
+          }
+          EOF
+      - name: Botu calistir
+        working-directory: ./KrX
+        run: node index.js
