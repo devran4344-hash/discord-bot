@@ -1,0 +1,208 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛡️  SUNUCU NSFW & İÇERİK KURALLARI
+        KrX NSFW Guard v2 tarafından korunmaktadır.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Bu sunucuda paylaşılan tüm içerikler KrX NSFW Guard
+sistemi tarafından 7/24 otomatik olarak denetlenmektedir.
+İhlaller anında tespit edilir, içerik silinir ve ceza
+uygulanır. Kural tanımamak seni sorumluluktan kurtarmaz.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📸  BÖLÜM 1 — FOTOĞRAF KURALLARI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.1  Normal, komik ve günlük fotoğraflar serbesttir.
+
+1.2  İnsan vücudunun cinsel organlarını, göğüs veya
+     kalça bölgesini açıkça gösteren her türlü fotoğraf
+     kesinlikle yasaktır.
+
+1.3  Yarı çıplak, iç çamaşırı, bikini veya mayo
+     fotoğrafları — özellikle provokatif pozlarda —
+     yasaktır.
+
+1.4  Gerçek kişilere ait mahrem, sızdırılmış veya
+     rızasız paylaşılan fotoğraflar kesinlikle yasaktır.
+     Bu durum aynı zamanda Türk Ceza Kanunu kapsamında
+     suç teşkil eder.
+
+1.5  Çizgi film, anime veya illüstrasyon karakterlerin
+     cinsel içerikli görselleri (hentai dahil) yasaktır.
+
+1.6  Kan, şiddet, işkence veya ölüm sahnesi içeren
+     fotoğraflar yasaktır.
+
+1.7  Hayvanları olumsuz, acımasız veya cinsel açıdan
+     tasvir eden fotoğraflar yasaktır.
+
+1.8  Uyuşturucu, alkol veya yasadışı madde kullanımını
+     özendiren / gösteren fotoğraflar yasaktır.
+
+1.9  Nefret söylemi içeren, ırkçı veya ayrımcı sembol
+     ve görsel içerikler yasaktır.
+
+1.10 Fotoğrafın adı (dosya adı) nsfw, porn, nude, xxx,
+     hentai, lewd, adult gibi kelimeler içeriyorsa
+     bot otomatik olarak siler.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎞️  BÖLÜM 2 — GIF KURALLARI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2.1  Komik, eğlenceli ve gündelik gifler serbesttir.
+     Kedi, köpek ve hayvan gifleri tamamen serbesttir.
+
+2.2  Cinsel içerikli, müstehcen veya seksüel hareketler
+     içeren gifler kesinlikle yasaktır.
+
+2.3  Yarı çıplak veya provokatif dans içeren gifler
+     yasaktır.
+
+2.4  Şiddet, kan veya acı sahnesi barındıran gifler
+     yasaktır.
+
+2.5  Anime / hentai türü müstehcen gif içerikleri
+     yasaktır.
+
+2.6  NSFW kaynaklı sitelerden (rule34, nhentai, vs.)
+     alınan gifler yasaktır. Bot URL'yi de analiz eder.
+
+2.7  Spoiler (||gif||) ile gizlenmiş NSFW gifler de
+     bot tarafından tespit edilir ve silinir.
+     Spoiler bypass girişimi ek ceza sebebidir.
+
+2.8  Bot, gifin ilk karesini analiz ederek içeriği
+     değerlendirir. Yanıltmaya çalışmak ihlal sayılır.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎬  BÖLÜM 3 — VİDEO KURALLARI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1  Eğlenceli, oyun, müzik ve eğitim videoları
+     serbesttir.
+
+3.2  Cinsel içerik barındıran her türlü video yasaktır.
+     Thumbnail (küçük resim) müstehcen olsa bile
+     video silinir.
+
+3.3  Şiddet, kan veya işkence sahnesi içeren videolar
+     yasaktır.
+
+3.4  18+ site kaynaklı videolar ve bu sitelere yönlendiren
+     videolar yasaktır.
+
+3.5  Özel / mahrem videonun rızasız paylaşımı yasaktır
+     ve yasal işlem başlatılabilir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗  BÖLÜM 4 — LİNK & METİN KURALLARI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4.1  NSFW, 18+ veya müstehcen site linkleri yasaktır.
+     Bot yasak domain listesini otomatik tarar.
+
+4.2  Discord davet linkleri yönetici onayı olmadan
+     paylaşılamaz. Bot otomatik siler.
+
+4.3  Başka sunuculara ya da dış platformlara yönlendiren
+     reklam amaçlı linkler yasaktır.
+
+4.4  Zararlı yazılım (malware), phishing veya dolandırıcılık
+     içeren linkler yasaktır. Hesabın direkt ban yer.
+
+4.5  Yasaklı kelimeler içeren metinler bot tarafından
+     otomatik silinir. Liste yöneticiler tarafından
+     belirlenir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖  BÖLÜM 5 — BOT TESPİT SİSTEMİ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KrX NSFW Guard v2, içerikleri 3 katmanlı AI sistemiyle
+analiz eder:
+
+5.1  KATMAN 1 — Discord Etiketi & Dosya Adı
+     Discord'un kendi NSFW etiketleme sistemi ve dosya
+     adı analizi. Anında tespit.
+
+5.2  KATMAN 2 — Sightengine Yapay Zekası
+     Görüntüyü piksel düzeyinde analiz eden AI motoru.
+     %99'a kadar doğruluk oranı. GIF'lerin ilk karesi
+     de dahil olmak üzere tüm görseller analiz edilir.
+
+5.3  KATMAN 3 — Lokal Renk Analizi (Fallback)
+     AI sistemi çevrimdışıyken devreye giren yedek
+     sistem. YCbCr renk modeli ile deri tonu analizi
+     yapar.
+
+5.4  Spoiler (||içerik||) ile gizlenen içerikler de
+     ayrıca taranır. Bypass girişimi tespit edilir.
+
+5.5  Bot kapalıyken gönderilen içerikler, bot yeniden
+     açıldığında otomatik olarak geriye dönük taranır
+     ve silinir.
+
+5.6  Mesaj düzenlenince de yeniden tarama yapılır.
+     Temiz görsel yerine NSFW koymak da tespit edilir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚖️  BÖLÜM 6 — CEZA SİSTEMİ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Her ihlalde içerik otomatik silinir ve aşağıdaki
+ceza basamakları uygulanır:
+
+6.1  1. İhlal  →  ⚠️  Uyarı
+     İçerik silinir. DM ile uyarı gönderilir.
+     Kayıt sisteme işlenir.
+
+6.2  2. İhlal  →  🔇  10 Dakika Susturma
+     İçerik silinir. 10 dakika boyunca mesaj
+     gönderme yetkisi kaldırılır.
+
+6.3  3. İhlal  →  🔇  1 Saat Susturma
+     İçerik silinir. 1 saat boyunca susturulur.
+
+6.4  4. İhlal  →  👢  Sunucudan Atılma (Kick)
+     İçerik silinir. Sunucudan atılır, davet
+     linki ile geri dönebilir.
+
+6.5  5. İhlal  →  🔨  7 Günlük Ban
+     İçerik silinir. 7 gün boyunca sunucuya
+     giremez.
+
+6.6  6. İhlal ve üzeri  →  🔨  Kalıcı Ban
+     İçerik silinir. Sunucudan kalıcı olarak
+     yasaklanır. İtiraz için yöneticiye başvur.
+
+Not: Ceza basamakları sunucu yöneticileri tarafından
+değiştirilebilir. Yukarıdaki liste örnek niteliktedir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋  BÖLÜM 7 — GENEL BİLGİLENDİRME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7.1  İhlal sayacın 30 gün boyunca ihlal yapmazsan
+     otomatik olarak sıfırlanır.
+
+7.2  Haksız silme veya itiraz durumunda bir yöneticiye
+     yazabilirsin. Bot %100 hatasız değildir.
+
+7.3  Adminler ve yöneticiler bot tarafından taranmaz.
+     Bu durum suistimal için değil, sistem güvenliği
+     içindir.
+
+7.4  Kasıtlı olarak boşluk bırakma, unicode karakter
+     veya başka yöntemlerle bot'u atlatmaya çalışmak
+     direkt ban sebebidir.
+
+7.5  Bot sana ihlal durumunda otomatik DM gönderir.
+     DM'ini kapalı tutman cezadan muaf kılmaz.
+
+7.6  Tüm ihlaller kayıt altına alınır. Yöneticiler
+     geçmişini /ihlaller komutu ile görebilir.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+     🛡️  KrX NSFW Guard v2  •  7/24 Koruma Aktif
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

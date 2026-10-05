@@ -1,0 +1,57 @@
+{
+  "guilds": [
+    {
+      "id": 1,
+      "guild_id": "1552401095249100870",
+      "aktif": true,
+      "nsfw_aktif": true,
+      "mod": "tum_kanallar",
+      "secili_kanallar": [],
+      "muaf_kanallar": [],
+      "muaf_roller": [],
+      "log_kanal_id": null,
+      "mod_log_kanal_id": null,
+      "ai_aktif": true,
+      "discord_flag_aktif": true,
+      "min_guven_skoru": 0.75,
+      "taranacak_tipler": [
+        "image",
+        "gif",
+        "video"
+      ],
+      "sayac_sifirlama_gun": 30,
+      "spoiler_kontrol": true,
+      "davet_filtresi": false,
+      "raid_aktif": false,
+      "raid_esik": 10,
+      "raid_esik_sure": 10,
+      "raid_aksiyon": "kick",
+      "spam_aktif": false,
+      "spam_limit": 5,
+      "spam_sure": 5,
+      "spam_aksiyon": "mute",
+      "spam_mute_dk": 10,
+      "link_filtre_aktif": false,
+      "link_muaf_roller": [],
+      "kelime_filtre_aktif": false,
+      "kilitli": false,
+      "olusturma": 1791209813800
+    }
+  ],
+  "ihlaller": [],
+  "uyarilar": [],
+  "ceza_adimlari": [],
+  "silinen_log": [],
+  "antispam": [],
+  "kelime_filtre": [],
+  "link_filtre": [],
+  "_id": {
+    "g": 1,
+    "i": 0,
+    "u": 0,
+    "c": 0,
+    "s": 0,
+    "k": 0,
+    "l": 0
+  }
+}
