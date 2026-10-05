@@ -1,0 +1,32 @@
+name: Mod-Bot 7-24
+on:
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+jobs:
+  modbot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Bagimliliklari kur
+        working-directory: ./modbot
+        run: npm install
+      - name: .env olustur
+        working-directory: ./modbot
+        run: |
+          cat > .env <<'EOF'
+          BOT_TOKEN=${{ secrets.MODBOT_TOKEN }}
+          PREFIX=!
+          OWNER_ID=1160564359727173792
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODERATION_ENABLED=true
+          OPENAI_THRESHOLD=0.75
+          EOF
+      - name: Botu calistir
+        working-directory: ./modbot
+        run: node index.js
