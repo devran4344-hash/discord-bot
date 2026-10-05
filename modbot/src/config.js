@@ -8,8 +8,14 @@ module.exports = {
   // ════════════════════════════════════════════════════════
   //  TEMEL AYARLAR
   // ════════════════════════════════════════════════════════
-  prefix:  process.env.PREFIX   || '!',
-  ownerID: process.env.OWNER_ID || '',
+# Bot Token - Discord Developer Portal'dan al
+BOT_TOKEN=
+
+# Bot Prefix (varsayılan: !)
+PREFIX=!
+
+# Bot Sahibi ID'si
+OWNER_ID=
 
   // Bot ismini buradan özelleştir
   botName: 'ModBot',
