@@ -1,0 +1,387 @@
+{
+  "sessions": [
+    {
+      "id": 1,
+      "startTime": "2026-10-03T20:45:48.496Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 2,
+      "startTime": "2026-10-03T20:45:55.979Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 3,
+      "startTime": "2026-10-03T20:47:11.195Z",
+      "endTime": "2026-10-03T20:47:36.103Z",
+      "status": "graceful",
+      "uptime": "0s 0d 24sn"
+    },
+    {
+      "id": 4,
+      "startTime": "2026-10-03T20:47:43.836Z",
+      "endTime": "2026-10-03T20:52:40.759Z",
+      "status": "graceful",
+      "uptime": "0s 4d 56sn"
+    },
+    {
+      "id": 5,
+      "startTime": "2026-10-03T20:53:12.536Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 6,
+      "startTime": "2026-10-03T20:57:48.693Z",
+      "endTime": "2026-10-03T20:58:14.181Z",
+      "status": "graceful",
+      "uptime": "0s 0d 25sn"
+    },
+    {
+      "id": 7,
+      "startTime": "2026-10-03T21:22:18.349Z",
+      "endTime": "2026-10-03T21:22:38.444Z",
+      "status": "graceful",
+      "uptime": "0s 0d 20sn"
+    },
+    {
+      "id": 8,
+      "startTime": "2026-10-03T22:05:40.402Z",
+      "endTime": "2026-10-03T22:08:11.450Z",
+      "status": "graceful",
+      "uptime": "0s 2d 31sn"
+    },
+    {
+      "id": 9,
+      "startTime": "2026-10-03T22:08:40.440Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 10,
+      "startTime": "2026-10-03T22:29:30.070Z",
+      "endTime": "2026-10-03T22:29:56.949Z",
+      "status": "graceful",
+      "uptime": "0s 0d 26sn"
+    },
+    {
+      "id": 11,
+      "startTime": "2026-10-03T22:30:15.315Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 12,
+      "startTime": "2026-10-03T23:08:40.995Z",
+      "endTime": "2026-10-03T23:09:03.151Z",
+      "status": "graceful",
+      "uptime": "0s 0d 22sn"
+    },
+    {
+      "id": 13,
+      "startTime": "2026-10-03T23:09:46.108Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 14,
+      "startTime": "2026-10-03T23:16:24.118Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 15,
+      "startTime": "2026-10-04T10:17:47.800Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 16,
+      "startTime": "2026-10-04T10:22:06.519Z",
+      "endTime": "2026-10-04T10:22:13.406Z",
+      "status": "graceful",
+      "uptime": "0s 0d 6sn"
+    },
+    {
+      "id": 17,
+      "startTime": "2026-10-04T10:22:32.525Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 18,
+      "startTime": "2026-10-04T10:54:46.981Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 19,
+      "startTime": "2026-10-04T10:55:15.184Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 20,
+      "startTime": "2026-10-04T10:55:35.594Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 21,
+      "startTime": "2026-10-04T11:04:17.555Z",
+      "endTime": "2026-10-04T11:09:51.507Z",
+      "status": "graceful",
+      "uptime": "0s 5d 33sn"
+    },
+    {
+      "id": 22,
+      "startTime": "2026-10-04T11:24:32.022Z",
+      "endTime": "2026-10-04T11:29:54.361Z",
+      "status": "graceful",
+      "uptime": "0s 5d 22sn"
+    },
+    {
+      "id": 23,
+      "startTime": "2026-10-04T11:32:48.808Z",
+      "endTime": "2026-10-04T13:35:07.367Z",
+      "status": "graceful",
+      "uptime": "2s 2d 18sn"
+    },
+    {
+      "id": 24,
+      "startTime": "2026-10-04T13:41:04.062Z",
+      "endTime": "2026-10-04T13:41:30.177Z",
+      "status": "graceful",
+      "uptime": "0s 0d 26sn"
+    },
+    {
+      "id": 25,
+      "startTime": "2026-10-04T13:47:31.686Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 26,
+      "startTime": "2026-10-04T13:55:40.262Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 27,
+      "startTime": "2026-10-04T14:06:45.927Z",
+      "endTime": "2026-10-04T14:07:17.342Z",
+      "status": "graceful",
+      "uptime": "0s 0d 31sn"
+    },
+    {
+      "id": 28,
+      "startTime": "2026-10-04T14:15:25.583Z",
+      "endTime": "2026-10-04T14:19:13.679Z",
+      "status": "graceful",
+      "uptime": "0s 3d 48sn"
+    },
+    {
+      "id": 29,
+      "startTime": "2026-10-04T14:20:53.461Z",
+      "endTime": "2026-10-04T14:31:23.230Z",
+      "status": "graceful",
+      "uptime": "0s 10d 29sn"
+    },
+    {
+      "id": 30,
+      "startTime": "2026-10-04T14:47:38.387Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 31,
+      "startTime": "2026-10-04T15:03:00.272Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 32,
+      "startTime": "2026-10-04T15:03:19.487Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 33,
+      "startTime": "2026-10-04T16:26:19.505Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 34,
+      "startTime": "2026-10-04T16:26:54.729Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 35,
+      "startTime": "2026-10-04T16:36:33.239Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 36,
+      "startTime": "2026-10-04T17:54:17.786Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 37,
+      "startTime": "2026-10-04T18:57:04.617Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 38,
+      "startTime": "2026-10-04T18:59:11.391Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 39,
+      "startTime": "2026-10-04T19:02:54.361Z",
+      "endTime": "2026-10-04T19:12:02.253Z",
+      "status": "graceful",
+      "uptime": "0s 9d 7sn"
+    },
+    {
+      "id": 40,
+      "startTime": "2026-10-04T19:12:07.781Z",
+      "endTime": "2026-10-04T19:12:14.335Z",
+      "status": "graceful",
+      "uptime": "0s 0d 6sn"
+    },
+    {
+      "id": 41,
+      "startTime": "2026-10-04T19:15:56.155Z",
+      "endTime": "2026-10-04T20:02:51.645Z",
+      "status": "graceful",
+      "uptime": "0s 46d 55sn"
+    },
+    {
+      "id": 42,
+      "startTime": "2026-10-04T20:03:08.160Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 43,
+      "startTime": "2026-10-04T20:15:58.007Z",
+      "endTime": "2026-10-04T20:28:04.890Z",
+      "status": "graceful",
+      "uptime": "0s 12d 6sn"
+    },
+    {
+      "id": 44,
+      "startTime": "2026-10-04T20:28:24.844Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 45,
+      "startTime": "2026-10-04T20:34:30.321Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 46,
+      "startTime": "2026-10-04T20:41:02.894Z",
+      "endTime": "2026-10-04T20:49:26.284Z",
+      "status": "graceful",
+      "uptime": "0s 8d 23sn"
+    },
+    {
+      "id": 47,
+      "startTime": "2026-10-05T12:40:34.131Z",
+      "endTime": "2026-10-05T12:56:44.356Z",
+      "status": "graceful",
+      "uptime": "0s 16d 10sn"
+    },
+    {
+      "id": 48,
+      "startTime": "2026-10-05T14:16:40.944Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 49,
+      "startTime": "2026-10-05T15:29:47.526Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 50,
+      "startTime": "2026-10-05T15:30:16.615Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 51,
+      "startTime": "2026-10-05T16:16:14.742Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 52,
+      "startTime": "2026-10-05T16:28:23.261Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 53,
+      "startTime": "2026-10-05T16:39:48.971Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 54,
+      "startTime": "2026-10-05T16:58:00.817Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 55,
+      "startTime": "2026-10-05T17:05:20.582Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 56,
+      "startTime": "2026-10-05T17:08:18.574Z",
+      "endTime": "2026-10-05T17:20:46.678Z",
+      "status": "graceful",
+      "uptime": "0s 12d 28sn"
+    },
+    {
+      "id": 57,
+      "startTime": "2026-10-05T17:21:02.026Z",
+      "endTime": "2026-10-05T17:32:29.443Z",
+      "status": "graceful",
+      "uptime": "0s 11d 27sn"
+    },
+    {
+      "id": 58,
+      "startTime": "2026-10-05T17:32:49.862Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 59,
+      "startTime": "2026-10-05T17:51:02.674Z",
+      "endTime": "Bilinmiyor (beklenmedik kapanma)",
+      "status": "crash"
+    },
+    {
+      "id": 60,
+      "startTime": "2026-10-05T18:11:18.136Z",
+      "endTime": null,
+      "status": "running"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+node_modules/
+Dosyalar/
+medya-ayar.json
+config.json
+.env
+*.log
