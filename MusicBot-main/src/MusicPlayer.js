@@ -1091,6 +1091,25 @@ class MusicPlayer {
                 this.currentDownloadedFile = null;
             }
 
+            // DRM hatası ise otomatik sıradaki şarkıya geç
+            const errMsg = error?.message || String(error) || '';
+            if (errMsg.includes('DRM protected') || errMsg.includes('DRM')) {
+                console.log(`⚠️ DRM korumalı şarkı atlanıyor: ${this.currentTrack?.title || 'Bilinmeyen'}`);
+                if (this.textChannel) {
+                    try {
+                        await this.textChannel.send(`⚠️ **${this.currentTrack?.title || 'Bu şarkı'}** DRM korumalı olduğu için atlandı. Sıradaki şarkıya geçiliyor...`);
+                    } catch (_) {}
+                }
+                this.currentTrack = null;
+                // Sıradaki şarkıya geç
+                if (this.queue.length > 0) {
+                    this.currentTrack = this.queue.shift();
+                    return await this.play(null, 0);
+                } else {
+                    return { success: false, message: 'DRM korumalı şarkı, sırada başka şarkı yok.' };
+                }
+            }
+
             const errorMsg = await ErrorHandler.handle(error, this.guild.id, 'MusicPlayer.play');
             await this.handleError(error, errorMsg);
             return { success: false, message: errorMsg };
