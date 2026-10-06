@@ -27,7 +27,6 @@ jobs:
         working-directory: ./MusicBot-main
         run: |
           cat > yt-dlp.conf <<'EOF'
-          --extractor-args "youtube:player_client=android,web_safari,ios"
           --no-check-certificates
           --no-warnings
           --retries 3
