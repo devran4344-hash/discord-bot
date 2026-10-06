@@ -22,7 +22,13 @@ jobs:
           mkdir -p node_modules/youtube-dl-exec/bin
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
-          node_modules/youtube-dl-exec/bin/yt-dlp --version
+      - name: PO Token Provider Kur
+        working-directory: ./MusicBot-main
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install bgutil-ytdlp-pot-provider
+          python3 -m bgutil_ytdlp_pot_provider.server --port 4416 &
+          sleep 5
       - name: .env olustur
         working-directory: ./MusicBot-main
         run: |
@@ -33,19 +39,15 @@ jobs:
           EMBED_COLOR=#FF6B6B
           STATUS=Muzik Dinliyor
           COOKIES_FILE=./cookies.txt
-          TOTAL_SHARDS=auto
-          SHARD_LIST=auto
-          SHARD_MODE=process
-          SHARD_RESPAWN=true
-          SHARD_SPAWN_DELAY=5500
-          SHARD_SPAWN_TIMEOUT=30000
           EOF
-      - name: cookies.txt olustur
+      - name: cookies.txt olustur (base64)
         working-directory: ./MusicBot-main
         run: |
-          cat > cookies.txt <<'COOKIEEOF'
-          ${{ secrets.YOUTUBE_COOKIES }}
-          COOKIEEOF
+          echo "${{ secrets.YOUTUBE_COOKIES }}" | base64 -d > cookies.txt
+          echo "=== Ilk 3 satir ==="
+          head -3 cookies.txt
+          echo "=== Toplam satir ==="
+          wc -l cookies.txt
       - name: Botu calistir
         working-directory: ./MusicBot-main
         run: node index.js
