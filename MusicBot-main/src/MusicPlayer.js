@@ -583,35 +583,13 @@ class MusicPlayer {
 
             // For Spotify and SoundCloud - we need to use the YouTube URL
             // These platforms have DRM protection and can't be downloaded directly
+            // SoundCloud şarkılarını doğrudan SoundCloud'dan indir
             let downloadUrl = track.url;
-            
-            if (track.platform === 'spotify' || track.platform === 'soundcloud') {
-                // For Spotify/SoundCloud, we must use the YouTube equivalent
-                if (track.youtubeUrl) {
-                    downloadUrl = track.youtubeUrl;
-                } else {
-                    // Search YouTube and use that URL
-                    const YouTube = require('./YouTube');
-                    const query = track.platform === 'spotify' 
-                        ? `${track.title} ${track.artist}`
-                        : track.title;
-                    
-                    const results = await YouTube.search(query, 1, this.guild?.id);
-                    if (results && results.length > 0) {
-                        downloadUrl = results[0].url;
-                        track.youtubeUrl = downloadUrl; // Cache for future
-                    } else {
-                        this.downloadingFiles.delete(filepath);
-                        throw new Error('Could not find YouTube equivalent');
-                    }
-                }
-            }
 
-            // For YouTube, Spotify (via YouTube), SoundCloud (via YouTube) - use youtube-dl-exec
-            if (track.platform === 'youtube' || track.platform === 'spotify' || track.platform === 'soundcloud') {
+            // YouTube için
+            if (track.platform === 'youtube') {
                 const youtubedl = require('youtube-dl-exec');
-                
-                    await youtubedl(downloadUrl, YouTube.getYtDlpOptions({
+                await youtubedl(downloadUrl, YouTube.getYtDlpOptions({
                     output: filepath,
                     format: 'bestaudio/best',
                     preferFreeFormats: true,
@@ -621,7 +599,52 @@ class MusicPlayer {
                     extractAudio: true,
                     audioFormat: 'opus'
                 }));
-            } else {
+            } 
+            // SoundCloud için doğrudan SoundCloud'dan
+            else if (track.platform === 'soundcloud') {
+                const youtubedl = require('youtube-dl-exec');
+                await youtubedl(downloadUrl, {
+                    output: filepath,
+                    format: 'bestaudio/best',
+                    preferFreeFormats: true,
+                    noCheckCertificates: true,
+                    noWarnings: true,
+                    postprocessorArgs: {
+                        'ffmpeg': ['-c:a', 'libopus', '-b:a', '128k']
+                    },
+                    extractAudio: true,
+                    audioFormat: 'opus'
+                });
+            }
+            // Spotify için (YouTube üzerinden)
+            else if (track.platform === 'spotify') {
+                if (track.youtubeUrl) {
+                    downloadUrl = track.youtubeUrl;
+                } else {
+                    const YouTube = require('./YouTube');
+                    const query = `${track.title} ${track.artist}`;
+                    const results = await YouTube.search(query, 1, this.guild?.id);
+                    if (results && results.length > 0) {
+                        downloadUrl = results[0].url;
+                        track.youtubeUrl = downloadUrl;
+                    } else {
+                        this.downloadingFiles.delete(filepath);
+                        throw new Error('Could not find YouTube equivalent for Spotify track');
+                    }
+                }
+                const youtubedl = require('youtube-dl-exec');
+                await youtubedl(downloadUrl, YouTube.getYtDlpOptions({
+                    output: filepath,
+                    format: 'bestaudio/best',
+                    preferFreeFormats: true,
+                    postprocessorArgs: {
+                        'ffmpeg': ['-c:a', 'libopus', '-b:a', '128k']
+                    },
+                    extractAudio: true,
+                    audioFormat: 'opus'
+                }));
+            }
+            else {
                 // For DirectLink - fetch and transcode with FFmpeg
                 const fetch = await ensureFetch();
                 const response = await fetch(streamUrl, {
