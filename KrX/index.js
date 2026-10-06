@@ -10,7 +10,6 @@ const {
 const fs    = require('fs');
 const path  = require('path');
 const chalk = require('chalk');
-const medya = require('./medyaKaydedici');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const cfgPath = path.join(__dirname, 'config.json');
@@ -373,9 +372,6 @@ client.on(Events.GuildCreate, async guild => {
 // ─── HATA YÖNETİMİ ───────────────────────────────────────────────────────────
 process.on('uncaughtException',  e => console.error(chalk.red('[KrX] Kritik:'), e.message));
 process.on('unhandledRejection', e => console.warn(chalk.yellow('[KrX] Ret:'), e instanceof Error ? e.message : e));
-
-// ─── Medya Kaydedici ─────────────────────────────────────────────────────────
-medya.baslat(client);
 
 // ─── BAŞLAT ───────────────────────────────────────────────────────────────────
 client.login(cfg.token).catch(e => {
