@@ -186,6 +186,13 @@ class SoundCloud {
             const unknownTitle = guildId ? await LanguageManager.getTranslation(guildId, 'soundcloud.unknown_title') : 'Unknown Title';
             const unknownArtist = guildId ? await LanguageManager.getTranslation(guildId, 'soundcloud.unknown_artist') : 'Unknown Artist';
 
+            // DRM kontrolü - DRM korumalı şarkıları atla
+            const isDRM = soundcloudTrack.drm
+                || soundcloudTrack.is_drm
+                || soundcloudTrack.track_authorization === 'blocked'
+                || soundcloudTrack.policy === 'BLOCK'
+                || soundcloudTrack.policy === 'SNIP';
+
             const track = {
                 title: soundcloudTrack.title || soundcloudTrack.fulltitle || unknownTitle,
                 artist: soundcloudTrack.uploader || soundcloudTrack.artist || unknownArtist,
@@ -201,6 +208,7 @@ class SoundCloud {
                 likeCount: soundcloudTrack.like_count,
                 channel: soundcloudTrack.channel,
                 channelId: soundcloudTrack.channel_id,
+                isDRM: isDRM, // DRM flag'i ekle
             };
 
             return track;
