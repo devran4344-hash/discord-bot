@@ -25,6 +25,7 @@ jobs:
           GUILD_ID=1552401095249100870
           EMBED_COLOR=#FF6B6B
           STATUS=Muzik Dinliyor
+          COOKIES_FILE=./cookies.txt
           TOTAL_SHARDS=auto
           SHARD_LIST=auto
           SHARD_MODE=process
@@ -32,6 +33,12 @@ jobs:
           SHARD_SPAWN_DELAY=5500
           SHARD_SPAWN_TIMEOUT=30000
           EOF
+      - name: cookies.txt olustur
+        working-directory: ./MusicBot-main
+        run: |
+          cat > cookies.txt <<'COOKIEEOF'
+          ${{ secrets.YOUTUBE_COOKIES }}
+          COOKIEEOF
       - name: Botu calistir
         working-directory: ./MusicBot-main
         run: node index.js
