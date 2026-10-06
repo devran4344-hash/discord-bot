@@ -23,6 +23,18 @@ jobs:
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
           node_modules/youtube-dl-exec/bin/yt-dlp --version
+      - name: yt-dlp config olustur
+        working-directory: ./MusicBot-main
+        run: |
+          cat > yt-dlp.conf <<'EOF'
+          --extractor-args "youtube:player_client=android,web_safari,ios"
+          --no-check-certificates
+          --no-warnings
+          --retries 3
+          --fragment-retries 3
+          EOF
+          echo "=== yt-dlp.conf ==="
+          cat yt-dlp.conf
       - name: .env olustur
         working-directory: ./MusicBot-main
         run: |
