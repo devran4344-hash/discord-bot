@@ -1,8 +1,9 @@
 // ╔═══════════════════════════════════════════════════════════════╗
-// ║              MODBOT — SES AFK KOMUTU (v3)                    ║
+// ║              MODBOT — SES AFK KOMUTU (v4)                    ║
 // ║         Prefix komut: !sesafk                                ║
 // ║         • Sadece OWNER kullanabilir                          ║
 // ║         • Atılırsa otomatik geri bağlanır                    ║
+// ║         • 3 denemeli bağlantı (60sn timeout)                 ║
 // ╚═══════════════════════════════════════════════════════════════╝
 
 const { PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
@@ -57,7 +58,7 @@ module.exports = {
     async execute(message, args, client) {
         // ─── Owner kontrolü ──────────────────────────────────────
         if (message.author.id !== OWNER_ID) {
-            return message.reply('❌ Bu komutu sadece **bot sahibi** kullanabilir.');
+            return message.reply('❌ Bu komutu sadece **bot sahibi** kullanabilir.').catch(() => {});
         }
 
         const durum = (args[0] || '').toLowerCase();
@@ -93,7 +94,7 @@ module.exports = {
                 .setTimestamp()
                 .setFooter({ text: 'ModBot — Ses AFK Sistemi' });
 
-            return message.reply({ embeds: [embed] });
+            return message.reply({ embeds: [embed] }).catch(() => {});
         }
 
         // ═════════════════════════════════════════════════════════
@@ -112,16 +113,16 @@ module.exports = {
             }
 
             if (!kanal) {
-                return message.reply('❌ Ses kanalı belirtmelisin: `!sesafk ac #sesli-kanal`\n💡 Ya da bir sesli kanala girip tekrar dene.');
+                return message.reply('❌ Ses kanalı belirtmelisin: `!sesafk ac #sesli-kanal`\n💡 Ya da bir sesli kanala girip tekrar dene.').catch(() => {});
             }
 
             if (kanal.type !== ChannelType.GuildVoice && kanal.type !== ChannelType.GuildStageVoice) {
-                return message.reply('❌ Belirtilen kanal bir **ses kanalı** değil.');
+                return message.reply('❌ Belirtilen kanal bir **ses kanalı** değil.').catch(() => {});
             }
 
             const permissions = kanal.permissionsFor(message.guild.members.me);
             if (!permissions.has(PermissionFlagsBits.Connect)) {
-                return message.reply(`❌ Botun **${kanal.name}** kanalına bağlanma yetkisi yok.`);
+                return message.reply(`❌ Botun **${kanal.name}** kanalına bağlanma yetkisi yok.`).catch(() => {});
             }
 
             // Eski bağlantıları temizle
@@ -134,13 +135,21 @@ module.exports = {
                 aktifAfk.delete(message.guild.id);
             }
 
-            const bekleMesaj = await message.reply('⏳ Ses kanalına bağlanılıyor...').catch(() => null);
+            const bekleMesaj = await message.reply('⏳ Ses kanalına bağlanılıyor... (3 deneme hakkı)').catch(() => null);
 
             try {
                 const basarili = await afkBaglan(client, message.guild, kanal.id);
 
                 if (!basarili) {
-                    if (bekleMesaj) await bekleMesaj.edit('❌ Ses kanalına bağlanılamadı (30 saniye zaman aşımı).');
+                    if (bekleMesaj) {
+                        try {
+                            await bekleMesaj.edit('❌ Ses kanalına bağlanılamadı (3 deneme başarısız). GitHub Actions bazen voice bağlantısında sorun yaşar. Birkaç dakika sonra tekrar dene veya farklı bir ses kanalı seç.');
+                        } catch (_) {
+                            await message.reply('❌ Ses kanalına bağlanılamadı (3 deneme başarısız).').catch(() => {});
+                        }
+                    } else {
+                        await message.reply('❌ Ses kanalına bağlanılamadı (3 deneme başarısız).').catch(() => {});
+                    }
                     return;
                 }
 
@@ -168,16 +177,28 @@ module.exports = {
                     .setFooter({ text: 'ModBot — Ses AFK Sistemi' });
 
                 if (bekleMesaj) {
-                    await bekleMesaj.edit({ content: null, embeds: [embed] });
+                    try {
+                        await bekleMesaj.edit({ content: null, embeds: [embed] });
+                    } catch (_) {
+                        await message.reply({ embeds: [embed] }).catch(() => {});
+                    }
                 } else {
-                    await message.reply({ embeds: [embed] });
+                    await message.reply({ embeds: [embed] }).catch(() => {});
                 }
 
                 console.log(`[sesafk] Açıldı — ${message.guild.name} | #${kanal.name} | ${message.author.tag}`);
 
             } catch (error) {
                 console.error('[sesafk] Açma hatası:', error);
-                if (bekleMesaj) await bekleMesaj.edit(`❌ Hata: \`${error.message}\``);
+                if (bekleMesaj) {
+                    try {
+                        await bekleMesaj.edit(`❌ Hata: \`${error.message}\``);
+                    } catch (_) {
+                        await message.reply(`❌ Hata: \`${error.message}\``).catch(() => {});
+                    }
+                } else {
+                    await message.reply(`❌ Hata: \`${error.message}\``).catch(() => {});
+                }
             }
 
             return;
@@ -199,7 +220,7 @@ module.exports = {
             .setTimestamp()
             .setFooter({ text: 'ModBot — Ses AFK Sistemi' });
 
-        return message.reply({ embeds: [embed] });
+        return message.reply({ embeds: [embed] }).catch(() => {});
     },
 
     // Dışa aktarılanlar
@@ -209,70 +230,87 @@ module.exports = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  AFK BAĞLANMA
+//  AFK BAĞLANMA (3 denemeli, 60sn timeout)
 // ═══════════════════════════════════════════════════════════════
 async function afkBaglan(client, guild, channelId) {
-    try {
-        const connection = joinVoiceChannel({
-            channelId,
-            guildId: guild.id,
-            adapterCreator: guild.voiceAdapterCreator,
-            selfDeaf: false,
-            selfMute: true,
-        });
-
+    for (let deneme = 1; deneme <= 3; deneme++) {
         try {
-            await entersState(connection, VoiceConnectionStatus.Ready, 30000);
-        } catch (err) {
-            try { connection.destroy(); } catch (_) {}
+            console.log(`[sesafk] Bağlanma denemesi ${deneme}/3 — ${guild.name}`);
+
+            const connection = joinVoiceChannel({
+                channelId,
+                guildId: guild.id,
+                adapterCreator: guild.voiceAdapterCreator,
+                selfDeaf: false,
+                selfMute: true,
+            });
+
+            try {
+                await entersState(connection, VoiceConnectionStatus.Ready, 60000);
+                console.log(`[sesafk] ✅ Bağlantı başarılı (deneme ${deneme})`);
+            } catch (err) {
+                console.log(`[sesafk] ❌ Deneme ${deneme} başarısız: ${err.message}`);
+                try { connection.destroy(); } catch (_) {}
+
+                if (deneme < 3) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    continue;
+                }
+                return false;
+            }
+
+            const player = createAudioPlayer({
+                behaviors: { noSubscriber: NoSubscriberBehavior.Play },
+            });
+            connection.subscribe(player);
+
+            startSilentAudio(player);
+
+            aktifAfk.set(guild.id, { channelId, player, connection });
+
+            connection.on(VoiceConnectionStatus.Disconnected, async () => {
+                const state = stateOku();
+                if (!state[guild.id]) {
+                    try { connection.destroy(); } catch (_) {}
+                    aktifAfk.delete(guild.id);
+                    return;
+                }
+                try {
+                    await Promise.race([
+                        entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+                        entersState(connection, VoiceConnectionStatus.Connecting, 5000),
+                    ]);
+                } catch {
+                    console.log(`[sesafk] Bağlantı koptu, yeniden bağlanılıyor — ${guild.name}`);
+                    try { connection.destroy(); } catch (_) {}
+                    aktifAfk.delete(guild.id);
+                    setTimeout(async () => {
+                        const yeniState = stateOku();
+                        if (!yeniState[guild.id]) return;
+                        const kanal = guild.channels.cache.get(yeniState[guild.id].channelId)
+                            || await guild.channels.fetch(yeniState[guild.id].channelId).catch(() => null);
+                        if (!kanal) return;
+                        await afkBaglan(client, guild, kanal.id);
+                    }, 3000);
+                }
+            });
+
+            connection.on(VoiceConnectionStatus.Destroyed, () => {
+                try { player.stop(); } catch (_) {}
+            });
+
+            return true;
+
+        } catch (error) {
+            console.error(`[sesafk] afkBaglan deneme ${deneme} hatası:`, error.message);
+            if (deneme < 3) {
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+            }
             return false;
         }
-
-        const player = createAudioPlayer({
-            behaviors: { noSubscriber: NoSubscriberBehavior.Play },
-        });
-        connection.subscribe(player);
-
-        startSilentAudio(player);
-
-        aktifAfk.set(guild.id, { channelId, player, connection });
-
-        connection.on(VoiceConnectionStatus.Disconnected, async () => {
-            const state = stateOku();
-            if (!state[guild.id]) {
-                try { connection.destroy(); } catch (_) {}
-                aktifAfk.delete(guild.id);
-                return;
-            }
-            try {
-                await Promise.race([
-                    entersState(connection, VoiceConnectionStatus.Signalling, 5000),
-                    entersState(connection, VoiceConnectionStatus.Connecting, 5000),
-                ]);
-            } catch {
-                console.log(`[sesafk] Bağlantı koptu, yeniden bağlanılıyor — ${guild.name}`);
-                try { connection.destroy(); } catch (_) {}
-                aktifAfk.delete(guild.id);
-                setTimeout(async () => {
-                    const yeniState = stateOku();
-                    if (!yeniState[guild.id]) return;
-                    const kanal = guild.channels.cache.get(yeniState[guild.id].channelId)
-                        || await guild.channels.fetch(yeniState[guild.id].channelId).catch(() => null);
-                    if (!kanal) return;
-                    await afkBaglan(client, guild, kanal.id);
-                }, 3000);
-            }
-        });
-
-        connection.on(VoiceConnectionStatus.Destroyed, () => {
-            try { player.stop(); } catch (_) {}
-        });
-
-        return true;
-    } catch (error) {
-        console.error('[sesafk] afkBaglan hatası:', error.message);
-        return false;
     }
+    return false;
 }
 
 // ═══════════════════════════════════════════════════════════════
