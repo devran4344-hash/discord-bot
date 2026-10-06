@@ -16,9 +16,8 @@ class SoundCloud {
                 return info ? [info] : [];
             }
 
-            // We'll use yt-dlp for SoundCloud search
-            // SoundCloud search: "ytsearch5:query site:soundcloud.com"
-            const searchQuery = `ytsearch${limit}:${query} site:soundcloud.com`;
+            // SoundCloud'da doğrudan ara
+            const searchQuery = `scsearch${limit}:${query}`;
 
             const results = await youtubedl(searchQuery, {
                 dumpSingleJson: true,
