@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Bagimliliklari kur
+      - name: Bağımlılıkları kur
         working-directory: ./MusicBot-main
         run: npm install
       - name: yt-dlp binary kur
@@ -31,18 +31,30 @@ jobs:
           pip install --upgrade pip
           pip install bgutil-ytdlp-pot-provider
           echo "Plugin kuruldu"
-      - name: PO Token Provider Server baslat (Docker)
+      - name: PO Token Provider Server başlat (Docker)
         run: |
-          docker run -d --name pot-server -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider:latest
-          echo "Container baslatildi, bekleniyor..."
+          docker run -d --name pot-server -p 4416:4416 --init brainicism/bgutil-ytdlp-pot-provider:latest
+          echo "Container başlatıldı, bekleniyor..."
           sleep 15
           echo "=== Container durumu ==="
           docker ps -a
           echo "=== Container log ==="
           docker logs pot-server
           echo "=== Port kontrol ==="
-          curl -s http://127.0.0.1:4416/ping || echo "Port yanit vermedi"
-      - name: .env olustur
+          curl -s http://127.0.0.1:4416/ping || echo "Port yanıt vermedi"
+      - name: yt-dlp config oluştur
+        working-directory: ./MusicBot-main
+        run: |
+          cat > yt-dlp.conf <<'EOF'
+          --extractor-args "youtube:player_client=web_safari,web;po_token=web+PO_TOKEN_VALUE_HERE"
+          --no-check-certificates
+          --no-warnings
+          --retries 3
+          --fragment-retries 3
+          EOF
+          echo "=== yt-dlp.conf ==="
+          cat yt-dlp.conf
+      - name: .env oluştur
         working-directory: ./MusicBot-main
         run: |
           cat > .env <<'EOF'
@@ -60,12 +72,14 @@ jobs:
           SHARD_SPAWN_DELAY=5500
           SHARD_SPAWN_TIMEOUT=30000
           EOF
-      - name: cookies.txt olustur
+      - name: cookies.txt oluştur
         working-directory: ./MusicBot-main
         run: |
           printf '%s\n' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          echo "Satir sayisi:"
+          echo "=== İlk 3 satır ==="
+          head -3 cookies.txt
+          echo "=== Toplam satır ==="
           wc -l cookies.txt
-      - name: Botu calistir
+      - name: Botu çalıştır
         working-directory: ./MusicBot-main
         run: node index.js
