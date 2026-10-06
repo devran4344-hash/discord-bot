@@ -4,8 +4,8 @@ require('dotenv').config();
 module.exports = {
     // Discord Bot Settings
     discord: {
-        token: process.env.DISCORD_TOKEN || 'MTI3NDExNzYxNzk4Mzk0Njg0Ng.GhEgml.NV2MXJvFVzpbD9irMw_vgoBs79r2NUGOeI777I',
-        clientId: process.env.CLIENT_ID || '1274117617983946846',
+        token: process.env.DISCORD_TOKEN,
+        clientId: process.env.CLIENT_ID,
         guildId: process.env.GUILD_ID || null, // Leave null for global commands
     },
 
@@ -52,7 +52,7 @@ module.exports = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
         },
-        format: 'bestaudio[ext=webm+acodec=opus+asr=48000]/bestaudio',
+        format: 'bestaudio/best',
         filter: 'audioonly',
         quality: 'highestaudio',
         highWaterMark: 1 << 25,
