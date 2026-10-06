@@ -16,6 +16,12 @@ jobs:
       - name: Bagimliliklari kur
         working-directory: ./modbot
         run: npm install
+      - name: Ses AFK paketlerini kur
+        working-directory: ./modbot
+        run: |
+          npm install @discordjs/voice sodium-native --save
+          node -e "console.log('@discordjs/voice:', require('@discordjs/voice') ? 'OK' : 'FAIL')"
+          node -e "console.log('sodium-native:', require('sodium-native') ? 'OK' : 'FAIL')"
       - name: .env olustur
         working-directory: ./modbot
         run: |
