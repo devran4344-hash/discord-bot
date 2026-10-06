@@ -204,7 +204,7 @@ module.exports = {
         } else if (query.startsWith('http') && (query.includes('.mp3') || query.includes('.wav') || query.includes('.ogg'))) {
             return 'direct';
         } else {
-            return 'youtube'; // Default to YouTube search
+            return 'soundcloud'; // Default to SoundCloud search
         }
     }
 };
