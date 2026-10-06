@@ -26,31 +26,22 @@ jobs:
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
           node_modules/youtube-dl-exec/bin/yt-dlp --version
-      - name: PO Token Provider kur
+      - name: yt-dlp PO Token eklentisini kur
         run: |
-          python3 -m pip install --upgrade pip
+          pip install --upgrade pip
           pip install bgutil-ytdlp-pot-provider
-          echo "Kuruldu"
-      - name: PO Token Provider baslat
+          echo "Plugin kuruldu"
+      - name: PO Token Provider Server baslat (Docker)
         run: |
-          nohup python3 -m bgutil_ytdlp_pot_provider.server --port 4416 > pot.log 2>&1 &
-          sleep 10
-          echo "=== PO Token log ==="
-          cat pot.log
+          docker run -d --name pot-server -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider:latest
+          echo "Container baslatildi, bekleniyor..."
+          sleep 15
+          echo "=== Container durumu ==="
+          docker ps -a
+          echo "=== Container log ==="
+          docker logs pot-server
           echo "=== Port kontrol ==="
           curl -s http://127.0.0.1:4416/ping || echo "Port yanit vermedi"
-      - name: yt-dlp config olustur
-        working-directory: ./MusicBot-main
-        run: |
-          cat > yt-dlp.conf <<'EOF'
-          --extractor-args "youtube:player_client=web_safari,web"
-          --no-check-certificates
-          --no-warnings
-          --retries 3
-          --fragment-retries 3
-          EOF
-          echo "=== yt-dlp.conf ==="
-          cat yt-dlp.conf
       - name: .env olustur
         working-directory: ./MusicBot-main
         run: |
@@ -73,9 +64,7 @@ jobs:
         working-directory: ./MusicBot-main
         run: |
           printf '%s\n' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          echo "=== Ilk 3 satir ==="
-          head -3 cookies.txt
-          echo "=== Toplam satir ==="
+          echo "Satir sayisi:"
           wc -l cookies.txt
       - name: Botu calistir
         working-directory: ./MusicBot-main
