@@ -21,13 +21,17 @@ jobs:
       - name: Bagimliliklari kur
         working-directory: ./MusicBot-main
         run: npm install
+      - name: Opus native kur
+        working-directory: ./MusicBot-main
+        run: |
+          npm install @discordjs/opus --save
+          node -e "console.log(require('@discordjs/opus').OpusEncoder ? 'Opus OK' : 'Opus FAIL')"
       - name: yt-dlp binary kur
         working-directory: ./MusicBot-main
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
-          node_modules/youtube-dl-exec/bin/yt-dlp --version
       - name: .env olustur
         working-directory: ./MusicBot-main
         run: |
@@ -37,12 +41,6 @@ jobs:
           GUILD_ID=1552401095249100870
           EMBED_COLOR=#FF6B6B
           STATUS=Muzik Dinliyor
-          TOTAL_SHARDS=auto
-          SHARD_LIST=auto
-          SHARD_MODE=process
-          SHARD_RESPAWN=true
-          SHARD_SPAWN_DELAY=5500
-          SHARD_SPAWN_TIMEOUT=30000
           EOF
       - name: Botu calistir
         working-directory: ./MusicBot-main
