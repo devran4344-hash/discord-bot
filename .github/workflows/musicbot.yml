@@ -16,45 +16,37 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Bağımlılıkları kur
         working-directory: ./MusicBot-main
         run: npm install
-      - name: yt-dlp binary kur
+
+      - name: yt-dlp binary ve PO Token eklentisini kur
         working-directory: ./MusicBot-main
         run: |
+          # yt-dlp binary'sini indir
           mkdir -p node_modules/youtube-dl-exec/bin
           curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
-          node_modules/youtube-dl-exec/bin/yt-dlp --version
-      - name: yt-dlp PO Token eklentisini kur
-        run: |
+          
+          # PO Token eklentisini kur
           pip install --upgrade pip
           pip install bgutil-ytdlp-pot-provider
-          echo "Plugin kuruldu"
-      - name: PO Token Provider Server başlat (Docker)
+          echo "yt-dlp ve PO Token eklentisi kuruldu."
+
+      - name: PO Token Provider Server'ı Başlat (Docker)
         run: |
-          docker run -d --name pot-server -p 4416:4416 --init brainicism/bgutil-ytdlp-pot-provider:latest
-          echo "Container başlatıldı, bekleniyor..."
+          docker run -d --name bgutil-provider -p 127.0.0.1:4416:4416 --init brainicism/bgutil-ytdlp-pot-provider:latest
+          echo "Container başlatıldı, sunucunun hazır olması bekleniyor..."
           sleep 15
-          echo "=== Container durumu ==="
+          echo "=== Container Durumu ==="
           docker ps -a
-          echo "=== Container log ==="
-          docker logs pot-server
-          echo "=== Port kontrol ==="
-          curl -s http://127.0.0.1:4416/ping || echo "Port yanıt vermedi"
-      - name: yt-dlp config oluştur
-        working-directory: ./MusicBot-main
-        run: |
-          cat > yt-dlp.conf <<'EOF'
-          --extractor-args "youtube:player_client=web_safari,web;po_token=web+PO_TOKEN_VALUE_HERE"
-          --no-check-certificates
-          --no-warnings
-          --retries 3
-          --fragment-retries 3
-          EOF
-          echo "=== yt-dlp.conf ==="
-          cat yt-dlp.conf
-      - name: .env oluştur
+          echo "=== Sunucu Logları ==="
+          docker logs bgutil-provider
+          echo "=== Port Kontrolü ==="
+          curl -s http://127.0.0.1:4416/ping || echo "Sunucu yanıt vermedi!"
+
+      - name: .env dosyasını oluştur
         working-directory: ./MusicBot-main
         run: |
           cat > .env <<'EOF'
@@ -72,14 +64,16 @@ jobs:
           SHARD_SPAWN_DELAY=5500
           SHARD_SPAWN_TIMEOUT=30000
           EOF
-      - name: cookies.txt oluştur
+
+      - name: cookies.txt dosyasını oluştur
         working-directory: ./MusicBot-main
         run: |
           printf '%s\n' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          echo "=== İlk 3 satır ==="
+          echo "=== İlk 3 Satır ==="
           head -3 cookies.txt
-          echo "=== Toplam satır ==="
+          echo "=== Toplam Satır ==="
           wc -l cookies.txt
+
       - name: Botu çalıştır
         working-directory: ./MusicBot-main
         run: node index.js
