@@ -13,10 +13,13 @@ function initFirebase() {
     if (_db) return _db;
     if (_initError) throw _initError;
     try {
-        const saRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
-        if (!saRaw) throw new Error('FIREBASE_SERVICE_ACCOUNT env değişkeni yok');
+        const saB64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+        if (!saB64) throw new Error('FIREBASE_SERVICE_ACCOUNT_B64 env değişkeni yok');
 
+        // Base64'ü çöz → JSON string'e çevir
+        const saRaw = Buffer.from(saB64.trim(), 'base64').toString('utf8');
         const sa = JSON.parse(saRaw);
+
         // private_key satır sonları bozulmuşsa düzelt
         if (sa.private_key) sa.private_key = sa.private_key.replace(/\\n/g, '\n');
 
@@ -24,7 +27,7 @@ function initFirebase() {
             admin.initializeApp({ credential: admin.credential.cert(sa) });
         }
         _db = admin.firestore();
-        console.log('[firebase] ✅ Bağlantı başarılı');
+        console.log('[firebase] ✅ Bağlantı başarılı (proje: ' + sa.project_id + ')');
         return _db;
     } catch (e) {
         _initError = e;
