@@ -227,9 +227,14 @@ function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-require('dotenv').config(); // varsa altına
+// ─── Firebase Başlat ─────────────────────────────────────────────
 const { initFirebase } = require('./src/utils/database');
-initFirebase();
+try {
+  initFirebase();
+  console.log(chalk.green('[firebase] ✅ Firebase başlatıldı'));
+} catch (err) {
+  console.error(chalk.red('[firebase] ❌ Başlatma hatası:'), err.message);
+}
 
 // ─── Login ────────────────────────────────────────────────────────
 const token = process.env.BOT_TOKEN;
