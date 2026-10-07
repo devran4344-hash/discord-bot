@@ -67,7 +67,7 @@ module.exports = {
     helper:     '1556016756206600282',
     muted:      '1556043194133774406',
     autoRole:   '1553167045871276224',
-    memberRole: '',
+    // memberRole: '',
     botRole:    '1553167652598448239',
     booster:    '1556015274866512035',
     ticketSupport: '',
