@@ -227,6 +227,10 @@ function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
+require('dotenv').config(); // varsa altına
+const { initFirebase } = require('./src/utils/database');
+initFirebase();
+
 // ─── Login ────────────────────────────────────────────────────────
 const token = process.env.BOT_TOKEN;
 if (!token) {
