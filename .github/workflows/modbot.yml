@@ -10,18 +10,31 @@ jobs:
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
+
+      # ✅ CACHE'İ GERİ YÜKLE (bot başlamadan önce)
+      - name: Data cache geri yukle
+        uses: actions/cache@v4
+        with:
+          path: modbot/data
+          key: modbot-data-${{ github.run_id }}
+          restore-keys: |
+            modbot-data-
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Bagimliliklari kur
         working-directory: ./modbot
         run: npm install
+
       - name: Ses AFK paketlerini kur
         working-directory: ./modbot
         run: |
           npm install @discordjs/voice sodium-native --save
           node -e "console.log('@discordjs/voice:', require('@discordjs/voice') ? 'OK' : 'FAIL')"
           node -e "console.log('sodium-native:', require('sodium-native') ? 'OK' : 'FAIL')"
+
       - name: .env olustur
         working-directory: ./modbot
         run: |
@@ -33,6 +46,7 @@ jobs:
           OPENAI_MODERATION_ENABLED=true
           OPENAI_THRESHOLD=0.75
           EOF
+
       - name: Botu calistir
         working-directory: ./modbot
         run: node index.js
