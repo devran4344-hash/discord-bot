@@ -235,7 +235,6 @@ try {
 } catch (err) {
   console.error(chalk.red('[firebase] ❌ Başlatma hatası:'), err.message);
 }
-
 // ─── Login ────────────────────────────────────────────────────────
 const token = process.env.BOT_TOKEN;
 if (!token) {
