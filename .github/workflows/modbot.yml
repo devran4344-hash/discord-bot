@@ -70,6 +70,7 @@ jobs:
           OPENAI_MODERATION_ENABLED=true
           OPENAI_THRESHOLD=0.75
           FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          DARBE_ENCRYPTION_KEY=${{ secrets.DARBE_ENCRYPTION_KEY }}
           EOF
           echo ".env dosyasi olusturuldu:"
           grep -o '^[A-Z_]*=' .env | tr -d '='
