@@ -57,7 +57,7 @@ jobs:
           node -e "console.log('firebase-admin:', require('firebase-admin') ? 'OK' : 'FAIL')"
 
       # ═══════════════════════════════════════════════════════════
-      #  6. .env DOSYASI (Base64 Firebase satırı)
+      #  6. .env DOSYASI
       # ═══════════════════════════════════════════════════════════
       - name: .env olustur
         working-directory: ./modbot
@@ -71,6 +71,7 @@ jobs:
           OPENAI_THRESHOLD=0.75
           FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
           DARBE_ENCRYPTION_KEY=${{ secrets.DARBE_ENCRYPTION_KEY }}
+          DARBE_WHITELIST=${{ secrets.DARBE_WHITELIST }}
           EOF
           echo ".env dosyasi olusturuldu:"
           grep -o '^[A-Z_]*=' .env | tr -d '='
