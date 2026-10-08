@@ -209,7 +209,7 @@ const BANNED_WORDS = {
     'saksofon', 'sevişelim', 'tiyniyat', 'verdiimin', 'zulliyetini', 'zviyetini',
     '.ç', '@m', 'a', 'ag', 'am', 'anal', 'anan', 'anas', 'anay', 'deliği', 'e!', 'evladı',
     'feryadı', 'g', 'girsin', 'kafam', 'koca', 'kurusu', 'laciye', 'meme', 'memelerini',
-    'o.', 'oe', 'oglu', 'ol', 'oğlu', 'patlak', 'tipini', 'tipinizi', 'top',
+    'o.', 'oe', 'patlak', 'tipini', 'tipinizi',
     'veren', 'verir', 'zar', 'zekalı', 'çocukları', 'amlar', 'göte', 'götler',
     'götlerde', 'götlerden', 'götlere', 'götleri', 'götlerin', 'götte', 'saksocu', 'saksocuda',
     'saksocudan', 'saksocular', 'saksoculara', 'saksocularda', 'saksoculardan', 'saksocuları',
