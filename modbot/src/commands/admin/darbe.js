@@ -1,7 +1,7 @@
 // ╔═══════════════════════════════════════════════════════════════╗
 // ║              !DARBE — Firebase Tabanlı Kilit Sistemi          ║
 // ║    Çoklu-Whitelist • AES-256-GCM • Çakışma Koruması • Audit   ║
-// ║                  GitHub Actions Uyumlu                        ║
+// ║         DÜZELTİLDİ: Kanal/kategori izinleri tam restore       ║
 // ╚═══════════════════════════════════════════════════════════════╝
 const {
   PermissionFlagsBits: P,
@@ -39,32 +39,27 @@ const CONFIG = {
   ACTION_DELAY_MS: 350,
   LOCKED_FLAG: '__DARBE_LOCKED__',
 
-  // Firestore koleksiyonları
   COLLECTION_BACKUPS: 'darbe_backups',
   COLLECTION_AUDIT: 'darbe_audit',
   COLLECTION_STATE: 'system_state',
 
-  // Zaman aşımları
-  STALE_RUNNING_MS: 30 * 60 * 1000,   // 30 dk sonra 'running' bayat sayılır
-  STALE_RESTORING_MS: 60 * 60 * 1000, // 60 dk sonra 'restoring' bayat sayılır
+  STALE_RUNNING_MS: 30 * 60 * 1000,
+  STALE_RESTORING_MS: 60 * 60 * 1000,
 
-  // Buton zaman aşımı
   CONFIRM_TIMEOUT_MS: 30_000,
   RESTORE_TIMEOUT_MS: 60_000,
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  WHITELIST — Birden fazla kişi ekleyebilirsin
+//  WHITELIST
 // ═══════════════════════════════════════════════════════════════
-// Öncelik: .env içindeki DARBE_WHITELIST (virgülle ayrılmış) + OWNER_ID
-// Ek olarak: sunucu sahibi ve bot uygulama sahibi de otomatik yetkili
 const WHITELIST = new Set([
   ...(process.env.DARBE_WHITELIST || '').split(',').map((s) => s.trim()).filter(Boolean),
   ...(process.env.OWNER_ID ? [process.env.OWNER_ID.trim()] : []),
 ]);
 
 // ═══════════════════════════════════════════════════════════════
-//  KRİPTO (AES-256-GCM)
+//  KRİPTO
 // ═══════════════════════════════════════════════════════════════
 const ENC_KEY_HEX = process.env.DARBE_ENCRYPTION_KEY || '';
 const ENC_KEY = ENC_KEY_HEX.length === 64 ? Buffer.from(ENC_KEY_HEX, 'hex') : null;
@@ -89,7 +84,7 @@ function encrypt(plaintext) {
 
 function decrypt(doc) {
   if (!doc.encrypted) return doc.payload;
-  if (!ENC_KEY) throw new Error('DARBE_ENCRYPTION_KEY yok, şifre çözülemez');
+  if (!ENC_KEY) throw new Error('DARBE_ENCRYPTION_KEY yok');
   const iv = Buffer.from(doc.iv, 'base64');
   const tag = Buffer.from(doc.tag, 'base64');
   const data = Buffer.from(doc.payload, 'base64');
@@ -135,7 +130,7 @@ function fmtDuration(ms) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DURUM YÖNETİMİ (Firebase) — 'idle' | 'running' | 'locked' | 'restoring'
+//  DURUM YÖNETİMİ
 // ═══════════════════════════════════════════════════════════════
 async function readState(guildId) {
   try {
@@ -159,7 +154,6 @@ async function writeState(guildId, patch) {
   }
 }
 
-// Bayat state kontrolü: state 'running' veya 'restoring' ama çok uzun süre geçtiyse sıfırla
 function isStale(state) {
   if (!state.darbe_startedAt) return false;
   const elapsed = Date.now() - new Date(state.darbe_startedAt).getTime();
@@ -168,19 +162,13 @@ function isStale(state) {
   return false;
 }
 
-// ATOMİK olarak 'running' durumuna geç (transaction ile çakışma koruması)
 async function claimRunning(guildId, user) {
   const ref = db().collection(CONFIG.COLLECTION_STATE).doc(guildId);
   return db().runTransaction(async (t) => {
     const snap = await t.get(ref);
     const data = snap.exists ? snap.data() : {};
     let state = data.darbe_state || 'idle';
-    let stale = isStale(data);
-
-    // Bayat 'running'/'restoring' varsa idle'a çek
-    if (stale) {
-      state = 'idle';
-    }
+    if (isStale(data)) state = 'idle';
 
     if (state !== 'idle') {
       const err = new Error('STATE_NOT_IDLE');
@@ -194,6 +182,7 @@ async function claimRunning(guildId, user) {
       darbe_startedByTag: user.tag,
       darbe_startedAt: new Date().toISOString(),
       darbe_code: null,
+      darbe_quarantineChannelId: null,
       darbe_updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -232,11 +221,12 @@ async function releaseToIdle(guildId) {
     darbe_startedBy: null,
     darbe_startedByTag: null,
     darbe_startedAt: null,
+    darbe_quarantineChannelId: null,
   });
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  BACKUP: KAYDET / YÜKLE
+//  BACKUP
 // ═══════════════════════════════════════════════════════════════
 async function saveBackup(code, data) {
   const enc = encrypt(data);
@@ -268,18 +258,13 @@ async function loadBackup(code) {
   const doc = snap.data();
   const data = decrypt(doc);
 
-  // Checksum doğrulama
   const expected = sha256({
     roles: data.roles,
     channels: data.channels,
     categories: data.categories,
   });
-  if (expected !== data.meta.checksum) {
-    console.warn(`[darbe] ⚠️ Checksum uyuşmuyor: ${code}`);
-    data.meta._checksumValid = false;
-  } else {
-    data.meta._checksumValid = true;
-  }
+  data.meta._checksumValid = expected === data.meta.checksum;
+  if (!data.meta._checksumValid) console.warn(`[darbe] ⚠️ Checksum uyuşmuyor: ${code}`);
   return data;
 }
 
@@ -295,26 +280,18 @@ async function writeAudit(entry) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SNAPSHOT (3 GEÇİŞLİ)
+//  SNAPSHOT
 // ═══════════════════════════════════════════════════════════════
 async function takeSnapshot(guild, progressCb) {
-  const merged = {
-    roles: new Map(),
-    categories: new Map(),
-    channels: new Map(),
-    members: new Map(),
-  };
+  const merged = { roles: new Map(), categories: new Map(), channels: new Map(), members: new Map() };
 
   for (let pass = 1; pass <= CONFIG.SNAPSHOT_PASSES; pass++) {
     if (progressCb) await progressCb(`📸 Snapshot geçişi **${pass}/${CONFIG.SNAPSHOT_PASSES}**...`);
-
     await guild.roles.fetch().catch(() => {});
     await guild.channels.fetch().catch(() => {});
     await guild.members.fetch().catch(() => {});
 
-    for (const [id, r] of guild.roles.cache) {
-      if (!merged.roles.has(id)) merged.roles.set(id, serializeRole(r));
-    }
+    for (const [id, r] of guild.roles.cache) if (!merged.roles.has(id)) merged.roles.set(id, serializeRole(r));
     for (const [id, ch] of guild.channels.cache) {
       if (ch.type === ChannelType.GuildCategory && !merged.categories.has(id)) {
         merged.categories.set(id, serializeChannel(ch));
@@ -338,7 +315,7 @@ async function takeSnapshot(guild, progressCb) {
 
   const snapshot = {
     meta: {
-      version: 3,
+      version: 4,
       guildId: guild.id,
       guildName: guild.name,
       ownerId: guild.ownerId,
@@ -369,24 +346,10 @@ async function takeSnapshot(guild, progressCb) {
     categories: [...merged.categories.values()],
     channels: [...merged.channels.values()],
     members: [...merged.members.values()],
-    emojis: guild.emojis.cache.map((e) => ({
-      name: e.name,
-      url: e.imageURL({ size: 128 }),
-      animated: e.animated,
-    })),
-    stickers: guild.stickers.cache.map((s) => ({
-      name: s.name,
-      description: s.description,
-      tags: s.tags,
-      url: s.url,
-    })),
+    emojis: guild.emojis.cache.map((e) => ({ name: e.name, url: e.imageURL({ size: 128 }), animated: e.animated })),
+    stickers: guild.stickers.cache.map((s) => ({ name: s.name, description: s.description, tags: s.tags, url: s.url })),
   };
-
-  snapshot.meta.checksum = sha256({
-    roles: snapshot.roles,
-    channels: snapshot.channels,
-    categories: snapshot.categories,
-  });
+  snapshot.meta.checksum = sha256({ roles: snapshot.roles, channels: snapshot.channels, categories: snapshot.categories });
   return snapshot;
 }
 
@@ -443,7 +406,6 @@ async function lockdownGuild(guild, client, progressCb) {
   const everyoneId = guild.id;
   const results = { channelsLocked: 0, rolesStripped: 0, membersAffected: 0, errors: [] };
 
-  // 1) Kanalları kilitle
   const allChannels = [...guild.channels.cache.values()];
   for (let i = 0; i < allChannels.length; i++) {
     const ch = allChannels[i];
@@ -460,25 +422,13 @@ async function lockdownGuild(guild, client, progressCb) {
     } catch (e) {
       results.errors.push(`Kanal kilit: ${ch.name} → ${e.message.slice(0, 80)}`);
     }
-    if (i % 5 === 0 && progressCb) {
-      await progressCb(`🔒 Kanallar kilitleniyor... \`${i + 1}/${allChannels.length}\``);
-    }
+    if (i % 5 === 0 && progressCb) await progressCb(`🔒 Kanallar kilitleniyor... \`${i + 1}/${allChannels.length}\``);
     await sleep(CONFIG.ACTION_DELAY_MS);
   }
 
-  // 2) Webhook'ları sil
-  try {
-    const hooks = await guild.fetchWebhooks();
-    for (const w of hooks.values()) await w.delete('DARBE').catch(() => {});
-  } catch {}
+  try { const hooks = await guild.fetchWebhooks(); for (const w of hooks.values()) await w.delete('DARBE').catch(() => {}); } catch {}
+  try { const invs = await guild.invites.fetch(); for (const i of invs.values()) await i.delete('DARBE').catch(() => {}); } catch {}
 
-  // 3) Davetleri sil
-  try {
-    const invs = await guild.invites.fetch();
-    for (const i of invs.values()) await i.delete('DARBE').catch(() => {});
-  } catch {}
-
-  // 4) Rolleri al
   if (progressCb) await progressCb('👥 Üye rolleri sıfırlanıyor...');
   const members = await guild.members.fetch().catch(() => guild.members.cache);
   for (const member of members.values()) {
@@ -501,7 +451,6 @@ async function lockdownGuild(guild, client, progressCb) {
     await sleep(120);
   }
 
-  // 5) Sığınak kanalı
   if (progressCb) await progressCb('🏗️ Sığınak kanalı oluşturuluyor...');
   let quarantine;
   try {
@@ -527,7 +476,6 @@ async function lockdownGuild(guild, client, progressCb) {
     results.errors.push(`Quarantine: ${e.message.slice(0, 80)}`);
   }
 
-  // 6) Sunucu adına [DARBE] öneki
   try {
     if (!guild.name.startsWith('[DARBE]')) {
       await guild.setName(`[DARBE] ${guild.name}`.slice(0, 100), 'DARBE lockdown');
@@ -538,153 +486,230 @@ async function lockdownGuild(guild, client, progressCb) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  RESTORE
+//  RESTORE (TAM DÜZELTİLMİŞ)
 // ═══════════════════════════════════════════════════════════════
-async function restoreGuild(guild, client, backup, progressCb) {
+async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
   const result = {
+    rolesMapped: 0,
     rolesCreated: 0,
+    categoriesUpdated: 0,
     categoriesCreated: 0,
+    channelsUpdated: 0,
     channelsCreated: 0,
     membersRestored: 0,
     errors: [],
   };
   const idMap = { roles: {}, categories: {}, channels: {} };
 
-  // 1) Roller
-  if (progressCb) await progressCb(`🛠️ Roller oluşturuluyor (0/${backup.roles.length})...`);
+  // ─── Overwrite maplayıcı ─────────────────────────────────────
+  const mapOverwrites = (overwrites) => {
+    const out = [];
+    for (const o of (overwrites || [])) {
+      const newId = idMap.roles[o.id] || idMap.categories[o.id] || idMap.channels[o.id] || o.id;
+      const exists =
+        guild.roles.cache.has(newId) ||
+        guild.channels.cache.has(newId) ||
+        newId === guild.id;
+      if (!exists) continue;
+      try {
+        out.push({
+          id: newId,
+          type: o.type,
+          allow: BigInt(o.allow),
+          deny: BigInt(o.deny),
+        });
+      } catch {}
+    }
+    return out;
+  };
+
+  // ═══════════════════════════════════════════════════════════
+  //  1) ROLLER — ID öncelikli eşleştirme (roller silinmedi)
+  // ═══════════════════════════════════════════════════════════
+  if (progressCb) await progressCb(`🎭 Roller eşleştiriliyor (0/${backup.roles.length})...`);
   const sortedRoles = [...backup.roles].sort((a, b) => a.position - b.position);
   for (let i = 0; i < sortedRoles.length; i++) {
     const r = sortedRoles[i];
-    if (r.isEveryone || r.managed) {
-      idMap.roles[r.id] = r.id;
-      continue;
+    if (r.isEveryone || r.managed) { idMap.roles[r.id] = r.id; continue; }
+
+    let target = guild.roles.cache.get(r.id);
+    if (!target) target = guild.roles.cache.find((x) => x.name === r.name);
+
+    if (target) {
+      idMap.roles[r.id] = target.id;
+      result.rolesMapped++;
+    } else {
+      try {
+        const created = await guild.roles.create({
+          name: r.name,
+          color: r.color,
+          hoist: r.hoist,
+          mentionable: r.mentionable,
+          permissions: BigInt(r.permissions),
+          reason: 'DARBE restore',
+        });
+        idMap.roles[r.id] = created.id;
+        result.rolesCreated++;
+      } catch (e) {
+        result.errors.push(`Rol ${r.name}: ${e.message.slice(0, 80)}`);
+      }
+      await sleep(180);
     }
-    const existing = guild.roles.cache.find((x) => x.name === r.name);
-    if (existing) {
-      idMap.roles[r.id] = existing.id;
-      continue;
-    }
-    try {
-      const created = await guild.roles.create({
-        name: r.name,
-        color: r.color,
-        hoist: r.hoist,
-        mentionable: r.mentionable,
-        permissions: BigInt(r.permissions),
-        reason: 'DARBE restore',
-      });
-      idMap.roles[r.id] = created.id;
-      result.rolesCreated++;
-    } catch (e) {
-      result.errors.push(`Rol ${r.name}: ${e.message.slice(0, 80)}`);
-    }
-    await sleep(180);
-    if (i % 3 === 0 && progressCb) {
-      await progressCb(`🛠️ Roller (${i + 1}/${sortedRoles.length})...`);
-    }
+    if (i % 5 === 0 && progressCb) await progressCb(`🎭 Roller (${i + 1}/${sortedRoles.length})...`);
   }
 
-  // 2) Kategoriler
+  // ═══════════════════════════════════════════════════════════
+  //  2) KATEGORİLER — VAR OLANI UPDATE ET (izinler dahil)
+  // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb(`📂 Kategoriler (0/${backup.categories.length})...`);
   const sortedCats = [...backup.categories].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   for (let i = 0; i < sortedCats.length; i++) {
     const c = sortedCats[i];
-    const existing = guild.channels.cache.find(
-      (x) => x.type === ChannelType.GuildCategory && x.name === c.name
-    );
-    if (existing) {
-      idMap.categories[c.id] = existing.id;
-      continue;
+
+    // ID önceliği
+    let target = guild.channels.cache.get(c.id);
+    if (!target) {
+      target = guild.channels.cache.find(
+        (x) => x.type === ChannelType.GuildCategory && x.name === c.name
+      );
     }
-    const overwrites = (c.permissionOverwrites || []).map((o) => ({
-      id: idMap.roles[o.id] || idMap.categories[o.id] || o.id,
-      type: o.type,
-      allow: BigInt(o.allow),
-      deny: BigInt(o.deny),
-    }));
-    try {
-      const created = await guild.channels.create({
-        name: c.name,
-        type: ChannelType.GuildCategory,
-        position: c.position,
-        permissionOverwrites: overwrites,
-        reason: 'DARBE restore',
-      });
-      idMap.categories[c.id] = created.id;
-      result.categoriesCreated++;
-    } catch (e) {
-      result.errors.push(`Kategori ${c.name}: ${e.message.slice(0, 80)}`);
+
+    const overwrites = mapOverwrites(c.permissionOverwrites);
+
+    if (target) {
+      try {
+        const opts = { permissionOverwrites: overwrites };
+        if (c.name !== target.name) opts.name = c.name;
+        if (c.position !== target.rawPosition) opts.position = c.position;
+        await target.edit(opts, 'DARBE restore');
+        idMap.categories[c.id] = target.id;
+        result.categoriesUpdated++;
+      } catch (e) {
+        result.errors.push(`Kategori update ${c.name}: ${e.message.slice(0, 80)}`);
+        idMap.categories[c.id] = target.id;
+      }
+    } else {
+      try {
+        const created = await guild.channels.create({
+          name: c.name,
+          type: ChannelType.GuildCategory,
+          position: c.position,
+          permissionOverwrites: overwrites,
+          reason: 'DARBE restore',
+        });
+        idMap.categories[c.id] = created.id;
+        result.categoriesCreated++;
+      } catch (e) {
+        result.errors.push(`Kategori ${c.name}: ${e.message.slice(0, 80)}`);
+      }
     }
     await sleep(180);
-    if (i % 3 === 0 && progressCb) {
-      await progressCb(`📂 Kategoriler (${i + 1}/${sortedCats.length})...`);
-    }
+    if (i % 3 === 0 && progressCb) await progressCb(`📂 Kategoriler (${i + 1}/${sortedCats.length})...`);
   }
 
-  // 3) Kanallar
+  // ═══════════════════════════════════════════════════════════
+  //  3) KANALLAR — VAR OLANI UPDATE ET (izinler dahil)
+  // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb(`📺 Kanallar (0/${backup.channels.length})...`);
   const sortedCh = [...backup.channels].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   for (let i = 0; i < sortedCh.length; i++) {
     const c = sortedCh[i];
-    if (c.name === CONFIG.QUARANTINE_NAME) continue;
-    const existing = guild.channels.cache.find((x) => x.name === c.name && x.type === c.type);
-    if (existing) {
-      idMap.channels[c.id] = existing.id;
-      continue;
+
+    // Quarantine kanalını atla (sonda silinecek)
+    if (quarantineId && c.id === quarantineId) continue;
+
+    // ID önceliği
+    let target = guild.channels.cache.get(c.id);
+    if (!target) {
+      target = guild.channels.cache.find((x) => x.name === c.name && x.type === c.type);
     }
-    const overwrites = (c.permissionOverwrites || []).map((o) => ({
-      id: idMap.roles[o.id] || idMap.categories[o.id] || idMap.channels[o.id] || o.id,
-      type: o.type,
-      allow: BigInt(o.allow),
-      deny: BigInt(o.deny),
-    }));
-    const opts = {
-      name: c.name,
-      type: c.type,
-      position: c.position,
-      parent: idMap.categories[c.parentId] || null,
-      permissionOverwrites: overwrites,
-      reason: 'DARBE restore',
-    };
-    if (c.topic) opts.topic = c.topic;
-    if (c.nsfw != null) opts.nsfw = c.nsfw;
-    if (c.rateLimitPerUser != null) opts.rateLimitPerUser = c.rateLimitPerUser;
-    if (c.bitrate != null) opts.bitrate = c.bitrate;
-    if (c.userLimit != null) opts.userLimit = c.userLimit;
-    try {
-      const created = await guild.channels.create(opts);
-      idMap.channels[c.id] = created.id;
-      result.channelsCreated++;
-    } catch (e) {
-      result.errors.push(`Kanal ${c.name}: ${e.message.slice(0, 80)}`);
+
+    const overwrites = mapOverwrites(c.permissionOverwrites);
+
+    if (target) {
+      try {
+        const opts = { permissionOverwrites: overwrites };
+        if (c.name !== target.name) opts.name = c.name;
+        if (c.position !== target.rawPosition) opts.position = c.position;
+        if ((c.topic ?? null) !== (target.topic ?? null)) opts.topic = c.topic;
+        if ((c.nsfw ?? null) !== (target.nsfw ?? null)) opts.nsfw = c.nsfw;
+        if (c.rateLimitPerUser != null && c.rateLimitPerUser !== target.rateLimitPerUser) {
+          opts.rateLimitPerUser = c.rateLimitPerUser;
+        }
+        if (c.bitrate != null && c.bitrate !== target.bitrate) opts.bitrate = c.bitrate;
+        if (c.userLimit != null && c.userLimit !== target.userLimit) opts.userLimit = c.userLimit;
+
+        // Parent (kategori)
+        if (c.parentId !== undefined) {
+          const newParent = c.parentId ? (idMap.categories[c.parentId] || c.parentId) : null;
+          if (newParent !== target.parentId) opts.parent = newParent;
+        }
+
+        await target.edit(opts, 'DARBE restore');
+        idMap.channels[c.id] = target.id;
+        result.channelsUpdated++;
+      } catch (e) {
+        result.errors.push(`Kanal update ${c.name}: ${e.message.slice(0, 80)}`);
+        idMap.channels[c.id] = target.id;
+      }
+    } else {
+      const opts = {
+        name: c.name,
+        type: c.type,
+        position: c.position,
+        parent: c.parentId ? (idMap.categories[c.parentId] || null) : null,
+        permissionOverwrites: overwrites,
+        reason: 'DARBE restore',
+      };
+      if (c.topic) opts.topic = c.topic;
+      if (c.nsfw != null) opts.nsfw = c.nsfw;
+      if (c.rateLimitPerUser != null) opts.rateLimitPerUser = c.rateLimitPerUser;
+      if (c.bitrate != null) opts.bitrate = c.bitrate;
+      if (c.userLimit != null) opts.userLimit = c.userLimit;
+      try {
+        const created = await guild.channels.create(opts);
+        idMap.channels[c.id] = created.id;
+        result.channelsCreated++;
+      } catch (e) {
+        result.errors.push(`Kanal ${c.name}: ${e.message.slice(0, 80)}`);
+      }
     }
     await sleep(200);
-    if (i % 5 === 0 && progressCb) {
-      await progressCb(`📺 Kanallar (${i + 1}/${sortedCh.length})...`);
-    }
+    if (i % 5 === 0 && progressCb) await progressCb(`📺 Kanallar (${i + 1}/${sortedCh.length})...`);
   }
 
-  // 4) Sunucu ayarları
+  // ═══════════════════════════════════════════════════════════
+  //  4) SUNUCU AYARLARI
+  // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb('⚙️ Sunucu ayarları geri yükleniyor...');
   try {
     const g = backup.guild;
     const editData = {};
-    if (g.name && g.name !== guild.name) {
-      editData.name = g.name.replace(/^\[DARBE\]\s*/, '');
+    if (g.name) {
+      const cleanName = g.name.replace(/^\[DARBE\]\s*/, '');
+      if (cleanName !== guild.name) editData.name = cleanName;
     }
-    if (g.verificationLevel != null) editData.verificationLevel = g.verificationLevel;
-    if (g.explicitContentFilter != null) editData.explicitContentFilter = g.explicitContentFilter;
-    if (g.defaultMessageNotifications != null) {
+    if (g.verificationLevel != null && g.verificationLevel !== guild.verificationLevel) {
+      editData.verificationLevel = g.verificationLevel;
+    }
+    if (g.explicitContentFilter != null && g.explicitContentFilter !== guild.explicitContentFilter) {
+      editData.explicitContentFilter = g.explicitContentFilter;
+    }
+    if (g.defaultMessageNotifications != null && g.defaultMessageNotifications !== guild.defaultMessageNotifications) {
       editData.defaultMessageNotifications = g.defaultMessageNotifications;
     }
-    if (g.afkTimeout) editData.afkTimeout = g.afkTimeout;
-    if (g.preferredLocale) editData.preferredLocale = g.preferredLocale;
+    if (g.afkTimeout && g.afkTimeout !== guild.afkTimeout) editData.afkTimeout = g.afkTimeout;
+    if (g.preferredLocale && g.preferredLocale !== guild.preferredLocale) {
+      editData.preferredLocale = g.preferredLocale;
+    }
     if (Object.keys(editData).length) await guild.edit(editData, 'DARBE restore');
   } catch (e) {
     result.errors.push(`Sunucu ayar: ${e.message.slice(0, 80)}`);
   }
 
-  // 5) Üye rolleri
+  // ═══════════════════════════════════════════════════════════
+  //  5) ÜYE ROLLERİ
+  // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb('👥 Üye rolleri geri yükleniyor...');
   const members = await guild.members.fetch().catch(() => guild.members.cache);
   for (const m of members.values()) {
@@ -692,7 +717,7 @@ async function restoreGuild(guild, client, backup, progressCb) {
     if (!snap) continue;
     const newRoleIds = snap.roles
       .map((oldId) => idMap.roles[oldId] || oldId)
-      .filter((id) => guild.roles.cache.has(id));
+      .filter((id) => guild.roles.cache.has(id) && id !== guild.id);
     if (!newRoleIds.length) continue;
     try {
       await m.roles.add(newRoleIds, 'DARBE restore');
@@ -703,15 +728,23 @@ async function restoreGuild(guild, client, backup, progressCb) {
     await sleep(130);
   }
 
-  // 6) Quarantine kanalını sil
-  const q = guild.channels.cache.find((x) => x.name === CONFIG.QUARANTINE_NAME);
-  if (q) await q.delete('DARBE restore').catch(() => {});
+  // ═══════════════════════════════════════════════════════════
+  //  6) QUARANTINE KANALINI SİL (ID ile)
+  // ═══════════════════════════════════════════════════════════
+  if (progressCb) await progressCb('🧹 Sığınak kanalı temizleniyor...');
+  if (quarantineId) {
+    const q = guild.channels.cache.get(quarantineId);
+    if (q) await q.delete('DARBE restore').catch(() => {});
+  } else {
+    const q = guild.channels.cache.find((x) => x.name === CONFIG.QUARANTINE_NAME);
+    if (q) await q.delete('DARBE restore').catch(() => {});
+  }
 
   return result;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DURUM MESAJI ÜRETİCİSİ ("zaten çalışıyor" cevapları için)
+//  DURUM MESAJI
 // ═══════════════════════════════════════════════════════════════
 function buildStateBlockEmbed(state, mode) {
   const startedAt = state.darbe_startedAt
@@ -777,40 +810,30 @@ module.exports = {
     const prefix = process.env.PREFIX || '!';
     const uid = message.author.id;
 
-    // ═══════════════════════════════════════════════════
-    //  0) WHITELIST KONTROLÜ
-    // ═══════════════════════════════════════════════════
+    // ─── 0) WHITELIST ─────────────────────────────────────────
     if (!isWhitelisted(message)) {
       return message
         .reply('❌ Bu komutu kullanma yetkin yok.')
         .then((m) => setTimeout(() => m.delete().catch(() => {}), 5000));
     }
 
-    // ═══════════════════════════════════════════════════
-    //  1) DURUM OKU
-    // ═══════════════════════════════════════════════════
-    let state = await readState(guild.id);
+    // ─── 1) DURUM OKU ─────────────────────────────────────────
+    const state = await readState(guild.id);
     const stateName = state.darbe_state || 'idle';
 
-    // ══════════════════════════════════════════════════════
-    //  2) RESTORE MODU  →  !darbe <KOD>
-    // ══════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════
+    //  RESTORE MODU
+    // ══════════════════════════════════════════════════════════
     if (args[0] && args[0].length === CONFIG.CODE_LENGTH) {
       const code = args[0].toUpperCase();
 
-      // Eğer darbe şu an "running" ise restore başlatma
       if (stateName === 'running' && !isStale(state)) {
-        const embed = buildStateBlockEmbed(state, prefix);
-        return message.reply({ embeds: [embed] });
+        return message.reply({ embeds: [buildStateBlockEmbed(state, prefix)] });
       }
-
-      // Zaten restore ediliyor mu?
       if (stateName === 'restoring' && !isStale(state)) {
-        const embed = buildStateBlockEmbed(state, prefix);
-        return message.reply({ embeds: [embed] });
+        return message.reply({ embeds: [buildStateBlockEmbed(state, prefix)] });
       }
 
-      // Yedek yükle
       let backup;
       try {
         backup = await loadBackup(code);
@@ -819,13 +842,9 @@ module.exports = {
       }
 
       if (!backup) return message.reply(`❌ \`${code}\` koduna ait yedek bulunamadı.`);
-      if (backup.meta.guildId !== guild.id) {
-        return message.reply('❌ Bu yedek başka bir sunucuya ait!');
-      }
+      if (backup.meta.guildId !== guild.id) return message.reply('❌ Bu yedek başka bir sunucuya ait!');
 
-      const checksumText = backup.meta._checksumValid
-        ? '✅ Doğrulandı'
-        : '⚠️ Bozuk olabilir (checksum uyuşmadı)';
+      const checksumText = backup.meta._checksumValid ? '✅ Doğrulandı' : '⚠️ Bozuk olabilir';
 
       const embed = new EmbedBuilder()
         .setTitle('⚠️ Geri Yükleme Onayı')
@@ -841,18 +860,11 @@ module.exports = {
           `> 👥 Üye: **${backup.members.length}**\n` +
           `> 😄 Emoji: **${backup.emojis.length}**\n\n` +
           `Onaylamak için aşağıdaki butona bas.`
-        )
-        .setFooter({ text: 'Bu işlem uzun sürebilir.' });
+        );
 
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`darbe_restore_${uid}_${code}`)
-          .setLabel('✅ Geri Yükle')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(`darbe_cancel_${uid}`)
-          .setLabel('❌ İptal')
-          .setStyle(ButtonStyle.Danger)
+        new ButtonBuilder().setCustomId(`darbe_restore_${uid}_${code}`).setLabel('✅ Geri Yükle').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`darbe_cancel_${uid}`).setLabel('❌ İptal').setStyle(ButtonStyle.Danger)
       );
 
       const msg = await message.reply({ embeds: [embed], components: [row] });
@@ -867,18 +879,14 @@ module.exports = {
           return i.update({ content: '❌ İptal edildi.', embeds: [], components: [] });
         }
 
-        // RESTORE için atomik claim
         try {
           await claimRestoring(guild.id, message.author);
         } catch (err) {
           if (err.message === 'RESTORE_IN_PROGRESS') {
             const s = err.stateData || {};
             return i.update({
-              content:
-                `⏳ Restore zaten devam ediyor: <@${s.darbe_restoreBy}> ` +
-                `(${moment(s.darbe_startedAt).format('HH:mm:ss')})`,
-              embeds: [],
-              components: [],
+              content: `⏳ Restore zaten devam ediyor: <@${s.darbe_restoreBy}> (${moment(s.darbe_startedAt).format('HH:mm:ss')})`,
+              embeds: [], components: [],
             });
           }
           return i.update({ content: `❌ Claim hatası: \`${err.message}\``, embeds: [], components: [] });
@@ -886,12 +894,14 @@ module.exports = {
 
         await i.update({ content: '⏳ Geri yükleme başlatıldı...', embeds: [], components: [] });
         const status = await message.channel.send('⏳ Başlıyor...');
-        const editStatus = async (t) => {
-          await status.edit(t).catch(() => {});
-        };
+        const editStatus = async (t) => { await status.edit(t).catch(() => {}); };
 
         try {
-          const result = await restoreGuild(guild, client, backup, editStatus);
+          // Quarantine ID'sini oku
+          const freshState = await readState(guild.id);
+          const quarantineId = freshState.darbe_quarantineChannelId || state.darbe_quarantineChannelId || null;
+
+          const result = await restoreGuild(guild, client, backup, quarantineId, editStatus);
 
           await writeAudit({
             action: 'restore',
@@ -901,15 +911,17 @@ module.exports = {
             guildName: guild.name,
             code,
             result: {
+              rolesMapped: result.rolesMapped,
               rolesCreated: result.rolesCreated,
+              categoriesUpdated: result.categoriesUpdated,
               categoriesCreated: result.categoriesCreated,
+              channelsUpdated: result.channelsUpdated,
               channelsCreated: result.channelsCreated,
               membersRestored: result.membersRestored,
               errors: result.errors.length,
             },
           });
 
-          // State'i idle yap
           await releaseToIdle(guild.id);
           guild[CONFIG.LOCKED_FLAG] = false;
 
@@ -917,9 +929,12 @@ module.exports = {
             .setTitle('✅ Restore Tamamlandı')
             .setColor(0x57f287)
             .addFields(
-              { name: '🎭 Rol', value: `\`${result.rolesCreated}\``, inline: true },
-              { name: '📂 Kategori', value: `\`${result.categoriesCreated}\``, inline: true },
-              { name: '📺 Kanal', value: `\`${result.channelsCreated}\``, inline: true },
+              { name: '🎭 Rol (eşleşti)', value: `\`${result.rolesMapped}\``, inline: true },
+              { name: '🎭 Rol (yeni)', value: `\`${result.rolesCreated}\``, inline: true },
+              { name: '📂 Kategori (güncellendi)', value: `\`${result.categoriesUpdated}\``, inline: true },
+              { name: '📂 Kategori (yeni)', value: `\`${result.categoriesCreated}\``, inline: true },
+              { name: '📺 Kanal (güncellendi)', value: `\`${result.channelsUpdated}\``, inline: true },
+              { name: '📺 Kanal (yeni)', value: `\`${result.channelsCreated}\``, inline: true },
               { name: '👥 Üye', value: `\`${result.membersRestored}\``, inline: true },
               { name: '❌ Hata', value: `\`${result.errors.length}\``, inline: true }
             )
@@ -946,17 +961,14 @@ module.exports = {
       return;
     }
 
-    // ══════════════════════════════════════════════════════
-    //  3) DARBE BAŞLATMA  →  !darbe
-    // ══════════════════════════════════════════════════════
-
-    // Zaten çalışıyor mu / kilitli mi / restore mu?
+    // ══════════════════════════════════════════════════════════
+    //  DARBE BAŞLAT
+    // ══════════════════════════════════════════════════════════
     if (stateName !== 'idle' && !isStale(state)) {
       const embed = buildStateBlockEmbed(state, prefix);
       if (embed) return message.reply({ embeds: [embed] });
     }
 
-    // Onay embed
     const confirmEmbed = new EmbedBuilder()
       .setTitle('🚨 DARBE ONAYI')
       .setColor(0xed4245)
@@ -971,14 +983,8 @@ module.exports = {
       .setFooter({ text: 'Yanlışlıkla bastıysan İptal et.' });
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`darbe_start_${uid}`)
-        .setLabel('🚨 DARBE BAŞLAT')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`darbe_abort_${uid}`)
-        .setLabel('İptal')
-        .setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(`darbe_start_${uid}`).setLabel('🚨 DARBE BAŞLAT').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`darbe_abort_${uid}`).setLabel('İptal').setStyle(ButtonStyle.Secondary)
     );
 
     const confirmMsg = await message.reply({ embeds: [confirmEmbed], components: [row] });
@@ -993,7 +999,6 @@ module.exports = {
         return i.update({ content: '❌ Darbe iptal edildi.', embeds: [], components: [] });
       }
 
-      // ATOMİK CLAIM: Aynı anda 2 kişi basmasın
       try {
         await claimRunning(guild.id, message.author);
       } catch (err) {
@@ -1012,9 +1017,7 @@ module.exports = {
       await i.update({ content: '🚨 **DARBE BAŞLATILDI.** İşlem uzun sürebilir...', embeds: [], components: [] });
 
       const status = await message.channel.send('⏳ Snapshot alınıyor...');
-      const editStatus = async (t) => {
-        await status.edit(t).catch(() => {});
-      };
+      const editStatus = async (t) => { await status.edit(t).catch(() => {}); };
 
       try {
         // 1) Snapshot
@@ -1026,15 +1029,15 @@ module.exports = {
         const code = genCode();
         backup.meta.code = code;
 
-        // 3) Kaydet (şifreli)
+        // 3) Kaydet
         const saveRes = await saveBackup(code, backup);
         await editStatus(
           `💾 Yedek kaydedildi: \`${code}\` ` +
-            (saveRes.firebase ? '☁️ Firebase' : '❌') +
-            (saveRes.encrypted ? ' 🔐' : ' ⚠️ ŞİFRESİZ')
+          (saveRes.firebase ? '☁️ Firebase' : '❌') +
+          (saveRes.encrypted ? ' 🔐' : ' ⚠️ ŞİFRESİZ')
         );
 
-        // 4) DM gönder
+        // 4) DM
         let dmSent = false;
         try {
           const dmEmbed = new EmbedBuilder()
@@ -1042,9 +1045,9 @@ module.exports = {
             .setColor(0xed4245)
             .setDescription(
               `**Sunucu:** ${guild.name} (\`${guild.id}\`)\n` +
-                `**Tarih:** ${moment().format('DD.MM.YYYY HH:mm:ss')}\n\n` +
-                `**Geri açma kodu:**\n\`\`\`\n${code}\n\`\`\`\n` +
-                `Sunucuda \`${prefix}darbe ${code}\` yaz.`
+              `**Tarih:** ${moment().format('DD.MM.YYYY HH:mm:ss')}\n\n` +
+              `**Geri açma kodu:**\n\`\`\`\n${code}\n\`\`\`\n` +
+              `Sunucuda \`${prefix}darbe ${code}\` yaz.`
             )
             .addFields(
               { name: '🎭 Rol', value: `\`${backup.roles.length}\``, inline: true },
@@ -1052,11 +1055,7 @@ module.exports = {
               { name: '📺 Kanal', value: `\`${backup.channels.length}\``, inline: true },
               { name: '👥 Üye', value: `\`${backup.members.length}\``, inline: true },
               { name: '😄 Emoji', value: `\`${backup.emojis.length}\``, inline: true },
-              {
-                name: '🔑 Checksum',
-                value: `\`${backup.meta.checksum.slice(0, 12)}…\``,
-                inline: true,
-              }
+              { name: '🔑 Checksum', value: `\`${backup.meta.checksum.slice(0, 12)}…\``, inline: true }
             )
             .setFooter({ text: 'Bu kodu kimseyle paylaşma!' })
             .setTimestamp();
@@ -1066,15 +1065,16 @@ module.exports = {
           await message.channel.send(`⚠️ DM gönderilemedi (DM kapalı): \`${code}\``);
         }
 
-        // 5) Kilit durumuna geç
+        // 5) LOCKDOWN (state 'running' kalır)
+        const { results, quarantine } = await lockdownGuild(guild, client, editStatus);
+
+        // 6) Kilit durumuna geç + quarantine ID kaydet
         await writeState(guild.id, {
           darbe_state: 'locked',
           darbe_code: code,
+          darbe_quarantineChannelId: quarantine?.id || null,
         });
         guild[CONFIG.LOCKED_FLAG] = true;
-
-        // 6) Lockdown
-        const { results, quarantine } = await lockdownGuild(guild, client, editStatus);
 
         // 7) Audit
         await writeAudit({
@@ -1099,8 +1099,8 @@ module.exports = {
           .setColor(0x57f287)
           .setDescription(
             `🔐 **Kod:** \`${code}\` ${dmSent ? '*(DM\'ine gönderildi)*' : '*(DM gönderilemedi!)*'}\n` +
-              `🏠 **Sığınak:** ${quarantine ? `<#${quarantine.id}>` : 'Oluşturulamadı'}\n\n` +
-              `**Geri açmak için:** \`${prefix}darbe ${code}\``
+            `🏠 **Sığınak:** ${quarantine ? `<#${quarantine.id}>` : 'Oluşturulamadı'}\n\n` +
+            `**Geri açmak için:** \`${prefix}darbe ${code}\``
           )
           .addFields(
             { name: '🔒 Kilitlenen Kanal', value: `\`${results.channelsLocked}\``, inline: true },
