@@ -4,10 +4,17 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
+# ═══════════════════════════════════════════════════════════════
+#  AYNI ANDA SADECE 1 RUN — Yenisi başlayınca eskisini iptal eder
+# ═══════════════════════════════════════════════════════════════
+concurrency:
+  group: modbot-run
+  cancel-in-progress: true
+
 jobs:
   modbot:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 280        # 👈 350 → 280 (5h cron'dan kısa)
     steps:
       - uses: actions/checkout@v4
 
@@ -42,10 +49,11 @@ jobs:
       - name: Ses AFK paketlerini kur
         working-directory: ./modbot
         run: |
-          npm install @discordjs/voice sodium-native opusscript --save
+          npm install @discordjs/voice sodium-native opusscript prism-media --save
           node -e "console.log('@discordjs/voice:', require('@discordjs/voice') ? 'OK' : 'FAIL')"
           node -e "console.log('sodium-native:', require('sodium-native') ? 'OK' : 'FAIL')"
           node -e "console.log('opusscript:', require('opusscript') ? 'OK' : 'FAIL')"
+          node -e "console.log('prism-media:', require('prism-media') ? 'OK' : 'FAIL')"
 
       # ═══════════════════════════════════════════════════════════
       #  5. FIREBASE PAKETİ
@@ -72,6 +80,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
           DARBE_ENCRYPTION_KEY=${{ secrets.DARBE_ENCRYPTION_KEY }}
           DARBE_WHITELIST=${{ secrets.DARBE_WHITELIST }}
+          FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
           EOF
           echo ".env dosyasi olusturuldu:"
           grep -o '^[A-Z_]*=' .env | tr -d '='
