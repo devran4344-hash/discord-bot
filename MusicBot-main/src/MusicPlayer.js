@@ -763,6 +763,12 @@ class MusicPlayer {
             this.pausedTime = 0;
             this.startTime = null; // Will be set when Playing event fires
 
+            // currentTrack null guard — eğer track yoksa dur
+            if (!this.currentTrack || !this.currentTrack.url) {
+                console.warn('[MusicPlayer.play] currentTrack is null, aborting play()');
+                return;
+            }
+
             // Get audio stream - check preloaded first!
             let streamUrl = this.currentTrack.url;
             let streamInfo;
@@ -1578,7 +1584,11 @@ class MusicPlayer {
             const manualSkip = reason === 'skip' || reason === 'stop';
             const endedUnexpectedly = Boolean(finishedTrack) && !manualSkip && durationMs > 0 && totalPlaybackMs + 1500 < durationMs;
 
-            if (endedUnexpectedly) {
+            // SoundCloud manifest stream'leri playbackDuration'ı 0 döndürür — false retry'ı engelle
+            const isManifestStream = finishedTrack?.url?.includes('manifest') ||
+                finishedTrack?.platform === 'soundcloud';
+            
+            if (endedUnexpectedly && !isManifestStream) {
                 this.currentTrackRetries += 1;
                 if (this.currentTrackRetries <= 2) {
                     // Attempt to resume the same track from the last known position

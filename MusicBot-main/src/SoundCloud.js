@@ -81,24 +81,71 @@ class SoundCloud {
 
     static async getStream(url, guildId = null, startSeconds = 0) {
         try {
-
-
-            // Get audio stream using yt-dlp
-            const result = await youtubedl(url, {
+            // dumpSingleJson ile gerçek audio stream URL'ini al
+            // getUrl: true HLS manifest döndürebiliyor, bu FFmpeg'i kırıyor
+            const info = await youtubedl(url, {
+                dumpSingleJson: true,
                 format: 'bestaudio/best',
-                getUrl: true,
                 noCheckCertificates: true,
                 noWarnings: true,
             });
 
-            if (!result) {
-                const errorMsg = guildId ? await LanguageManager.getTranslation(guildId, 'soundcloud.no_stream_url') : 'No stream URL found';
+            if (!info) {
+                const errorMsg = guildId
+                    ? await LanguageManager.getTranslation(guildId, 'soundcloud.no_stream_url')
+                    : 'No stream URL found';
                 throw new Error(errorMsg);
             }
 
-            // Note: SoundCloud streams typically don't support seek via URL parameters
-            // Seeking will be handled by FFmpeg in MusicPlayer
-            return result;
+            // Gerçek audio URL'ini çıkar — manifest değil direkt CDN URL'i
+            let streamUrl = null;
+
+            // Önce formats dizisinden opus/mp3 URL'i bul
+            if (info.formats && info.formats.length) {
+                // mp3 veya opus tercih et, manifest URL'lerini atla
+                const preferred = info.formats.find(f =>
+                    f.url &&
+                    !f.url.startsWith('manifest') &&
+                    !f.url.includes('m3u8') &&
+                    (f.ext === 'mp3' || f.ext === 'opus' || f.acodec !== 'none')
+                );
+                if (preferred) streamUrl = preferred.url;
+
+                // Bulamazsa manifest olmayan ilk URL'i al
+                if (!streamUrl) {
+                    const any = info.formats.find(f =>
+                        f.url &&
+                        !f.url.startsWith('manifest') &&
+                        !f.url.includes('m3u8')
+                    );
+                    if (any) streamUrl = any.url;
+                }
+
+                // Hâlâ yoksa m3u8 de kabul et (FFmpeg okuyabilir)
+                if (!streamUrl) {
+                    const m3u8 = info.formats.find(f => f.url);
+                    if (m3u8) streamUrl = m3u8.url;
+                }
+            }
+
+            // formats boşsa info.url'e bak
+            if (!streamUrl && info.url && !info.url.startsWith('manifest')) {
+                streamUrl = info.url;
+            }
+
+            if (!streamUrl) {
+                throw new Error('SoundCloud: gerçek audio URL bulunamadı');
+            }
+
+            return {
+                url: streamUrl,
+                type: 'arbitrary',
+                duration: info.duration || 0,
+                bitrate: info.abr || info.tbr || 128,
+                canSeek: false,
+                format: info.ext || 'mp3',
+                httpHeaders: info.http_headers || {},
+            };
 
         } catch (error) {
             throw error;
