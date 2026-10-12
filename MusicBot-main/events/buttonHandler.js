@@ -46,6 +46,11 @@ module.exports = {
         const guild  = interaction.guild;
         const member = interaction.member;
 
+        // ── Dual search buttons (SC/SP seçimi) ─────────────────────────────
+        if (interaction.customId.startsWith('dual_')) {
+            return this._handleDualSelect(interaction, client);
+        }
+
         // ── Search buttons ──────────────────────────────────────────────────
         if (interaction.customId.startsWith('search_')) {
             return this._handleSearch(interaction, client);
@@ -558,9 +563,107 @@ module.exports = {
         );
     },
 
+    // ── Dual search selection ─────────────────────────────────────────────────
+    async _handleDualSelect(interaction, client) {
+        const id    = interaction.customId;
+        const parts = id.split('_'); // ['dual','sc','0','userId'] veya ['dual','cancel','userId']
+
+        // İptal
+        if (parts[1] === 'cancel') {
+            const userId = parts.slice(2).join('_');
+            global.dualResults?.delete(userId);
+            return interaction.update({
+                embeds: [MusicEmbedManager.info('✖️  İptal', 'Arama iptal edildi.', config.bot.colors.warning)],
+                components: [],
+            });
+        }
+
+        const platform = parts[1]; // 'sc' veya 'sp'
+        const idx      = parseInt(parts[2], 10);
+        const userId   = parts.slice(3).join('_');
+
+        const stored = global.dualResults?.get(userId);
+        if (!stored) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Süresi Doldu', 'Arama sonuçları 5 dakikada siliyor. `/play` ile tekrar ara.')],
+                components: [],
+            });
+        }
+
+        const track = platform === 'sc'
+            ? stored.scResults[idx]
+            : stored.spResults[idx];
+
+        if (!track) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Hata', 'Şarkı bulunamadı.')],
+                components: [],
+            });
+        }
+
+        global.dualResults.delete(userId);
+
+        const member = interaction.member;
+        const guild  = interaction.guild;
+
+        if (!member.voice.channel) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Önce bir ses kanalına gir!')],
+                components: [],
+            });
+        }
+
+        const { PermissionFlagsBits: PF } = require('discord.js');
+        const perms = member.voice.channel.permissionsFor(guild.members.me);
+        if (!perms?.has(PF.Connect) || !perms?.has(PF.Speak)) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Yetki Yok', 'Ses kanalında Bağlan/Konuş yetkim yok.')],
+                components: [],
+            });
+        }
+
+        const platformLabel = platform === 'sc' ? '🟠 SoundCloud' : '🟢 Spotify';
+        const pColor        = platform === 'sc' ? config.bot.colors.soundcloud : config.bot.colors.spotify;
+
+        const selEmbed = new EmbedBuilder()
+            .setColor(pColor)
+            .setAuthor({ name: `${platformLabel}  ·  Seçildi`, iconURL: client.user.displayAvatarURL() })
+            .setTitle(track.title || 'Bilinmeyen')
+            .setURL(track.url || null)
+            .setDescription(
+                `**👤 Sanatçı:** \`${track.artist || track.author || '?'}\`\n` +
+                `**⏱ Süre:** \`${_fmtDur(track.duration)}\``
+            )
+            .setFooter({ text: 'Sıraya ekleniyor…' })
+            .setTimestamp();
+
+        if (track.thumbnail) selEmbed.setThumbnail(track.thumbnail);
+        await interaction.update({ embeds: [selEmbed], components: [] });
+
+        let player = client.players.get(guild.id);
+        if (!player) {
+            const MP = require('../src/MusicPlayer');
+            player = new MP(guild, interaction.channel, member.voice.channel);
+            client.players.set(guild.id, player);
+        }
+        player.voiceChannel = member.voice.channel;
+        player.textChannel  = interaction.channel;
+
+        if (!client.musicEmbedManager) {
+            const MEM = require('../src/MusicEmbedManager');
+            client.musicEmbedManager = new MEM(client);
+        }
+
+        await client.musicEmbedManager.handleMusicData(
+            guild.id,
+            { tracks: [track], isPlaylist: false },
+            member,
+            null,
+        );
+    },
+
     // ── Help refresh ──────────────────────────────────────────────────────────
-    async _handleHelpRefresh(interaction, client) {
-        await interaction.deferUpdate();
+    async _handleHelpRefresh(interaction, client) {        await interaction.deferUpdate();
         const helpCmd = require('../commands/help.js');
         const embed   = await helpCmd._buildEmbed(client, interaction.guild.id);
         const row     = helpCmd._buildButtons();
@@ -572,6 +675,16 @@ module.exports = {
 
 function member_mention(interaction) {
     return `<@${interaction.member.id}>`;
+}
+
+function _fmtDur(sec) {
+    const s = Math.floor(Number(sec) || 0);
+    if (!s) return '?:??';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    return `${m}:${String(ss).padStart(2, '0')}`;
 }
 
 function _lyricsRow(page, total) {
