@@ -15,13 +15,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: FFmpeg kur
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          ffmpeg -version
 
       - name: Bagimliliklari kur
         working-directory: ./MusicBot-main
@@ -43,34 +42,35 @@ jobs:
       - name: Cookies dosyasini olustur
         working-directory: ./MusicBot-main
         run: |
-          printf '%s' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+          echo "Cookies satir sayisi: $(wc -l < cookies.txt)"
 
       - name: .env olustur
         working-directory: ./MusicBot-main
         run: |
-          cat > .env <<'EOF'
-          DISCORD_TOKEN=${{ secrets.MUSICBOT_TOKEN }}
-          CLIENT_ID=1274117617983946846
-          GUILD_ID=1552401095249100870
-          SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}
-          COOKIES_FILE=cookies.txt
-          BOT_STATUS=🎵 Müzik Dinliyor | /play
-          DEFAULT_VOLUME=80
-          MAX_QUEUE_SIZE=200
-          MAX_PLAYLIST_SIZE=100
-          EMBED_COLOR=#FF6B6B
-          COLOR_YOUTUBE=#FF0000
-          COLOR_SPOTIFY=#1DB954
-          COLOR_SOUNDCLOUD=#FF5500
-          COLOR_SUCCESS=#57F287
-          COLOR_ERROR=#ED4245
-          COLOR_WARNING=#FEE75C
-          COLOR_INFO=#5865F2
-          COLOR_QUEUE=#EB459E
-          TOTAL_SHARDS=auto
-          SHARD_RESPAWN=true
-          EOF
+          cat > .env << EOF
+DISCORD_TOKEN=${{ secrets.MUSICBOT_TOKEN }}
+CLIENT_ID=1274117617983946846
+GUILD_ID=1552401095249100870
+SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}
+SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}
+COOKIES_FILE=cookies.txt
+BOT_STATUS=Muzik Dinliyor
+DEFAULT_VOLUME=80
+MAX_QUEUE_SIZE=200
+MAX_PLAYLIST_SIZE=100
+EMBED_COLOR=#FF6B6B
+COLOR_YOUTUBE=#FF0000
+COLOR_SPOTIFY=#1DB954
+COLOR_SOUNDCLOUD=#FF5500
+COLOR_SUCCESS=#57F287
+COLOR_ERROR=#ED4245
+COLOR_WARNING=#FEE75C
+COLOR_INFO=#5865F2
+COLOR_QUEUE=#EB459E
+TOTAL_SHARDS=auto
+SHARD_RESPAWN=true
+EOF
 
       - name: Botu calistir
         working-directory: ./MusicBot-main

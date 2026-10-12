@@ -159,20 +159,35 @@ class YouTube {
 
     static async getStream(url, guildId = null, startSeconds = 0) {
         try {
-
-
             if (!url) {
                 const errorMsg = guildId ? await LanguageManager.getTranslation(guildId, 'youtube.url_required') : 'URL is required';
                 throw new Error(errorMsg);
             }
 
-            // Get stream URL with simple format
-            const info = await youtubedl(url, this.getYtDlpOptions({
-                dumpSingleJson: true,
-                format: 'bestaudio/best',
-            }));
+            // "page needs to be reloaded" hatasına karşı 2 kez dene
+            let info = null;
+            let lastError = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    info = await youtubedl(url, this.getYtDlpOptions({
+                        dumpSingleJson: true,
+                        format: 'bestaudio/best',
+                    }));
+                    if (info && info.url) break;
+                } catch (err) {
+                    lastError = err;
+                    const msg = (err.message || '').toLowerCase();
+                    if (msg.includes('page needs to be reloaded') || msg.includes('needs to be reloaded')) {
+                        // Kısa bekle ve tekrar dene
+                        await new Promise(r => setTimeout(r, 2000));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
 
             if (!info || !info.url) {
+                if (lastError) throw lastError;
                 const errorMsg = guildId ? await LanguageManager.getTranslation(guildId, 'youtube.no_stream_url') : 'No stream URL found';
                 throw new Error(errorMsg);
             }

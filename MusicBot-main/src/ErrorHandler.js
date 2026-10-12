@@ -26,6 +26,8 @@ class ErrorHandler {
             msg.includes('please sign in') ||
             msg.includes('inappropriate') ||
             msg.includes('this video is unavailable') ||
+            msg.includes('page needs to be reloaded') ||
+            msg.includes('needs to be reloaded') ||
             (msg.includes('youtube') && msg.includes('403'))
         ) return 'youtube_bot_detection';
 
