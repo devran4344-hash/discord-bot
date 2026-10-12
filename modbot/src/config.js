@@ -255,7 +255,7 @@ module.exports = {
     showBanner:  true,
     // RSS giriş banner görseli — imgür'e yükle, direkt .png/.gif linkini yaz
     // Boş bırakırsan sunucunun banner'ı kullanılır
-    bannerUrl:   'https://cdn.discordapp.com/attachments/1510712028514484354/1559232017638359140/ChatGPT_Image_26_Eyl_2026_01_26_15.png?ex=6ace537a&is=6acd01fa&hm=82f99e5e1eae7d70b1d0bc7aa6c6a13f5d0b088e554627ba4ddc5399bd26e3bf&',
+    bannerUrl:   'https://i.imgur.com/dTL1Mmc.png',
     bannerColor: 0x1ABC9C,
     altYazi:     'Sunucuya Hoşgeldiniz',
   },
@@ -265,7 +265,7 @@ module.exports = {
     message:     '**{username}** sunucudan ayrıldı. Kalan üye: **{memberCount}**',
     useEmbed:    true,
     embedColor:  0xE74C3C,
-    bannerUrl:   '',
+    bannerUrl:   'https://i.imgur.com/dTL1Mmc.png',
     bannerColor: 0xE74C3C,
     altYazi:     'Sunucudan Ayrıldı',
   },
