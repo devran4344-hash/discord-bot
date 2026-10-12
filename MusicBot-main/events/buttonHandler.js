@@ -1,1130 +1,594 @@
-const { Events, EmbedBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle } = require('discord.js');
-const config = require('../config');
+'use strict';
+
+const {
+    Events,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle,
+    ButtonBuilder,
+    ButtonStyle,
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
+} = require('discord.js');
+
+const config          = require('../config');
 const LanguageManager = require('../src/LanguageManager');
-const MusicPlayer = require('../src/MusicPlayer');
+const MusicPlayer     = require('../src/MusicPlayer');
+const MusicEmbedManager = require('../src/MusicEmbedManager');
+
+const { platformColor, platformBadge, buildProgressBar, fmtDuration } = MusicEmbedManager;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function _isAuthorized(interaction, requesterId) {
+    const m = interaction.member;
+    if (m.permissions.has('ManageGuild')) return true;
+    if (m.roles.cache.some(r => r.name.toLowerCase().includes('dj'))) return true;
+    if (m.id === requesterId) return true;
+    return false;
+}
+
+function _ephemeral(embed) {
+    return { embeds: [embed], flags: [1 << 6] };
+}
+
+// ─── Module ──────────────────────────────────────────────────────────────────
 
 module.exports = {
     name: Events.InteractionCreate,
+
     async execute(interaction) {
         if (!interaction.isButton()) return;
 
         const client = interaction.client;
-        const guild = interaction.guild;
+        const guild  = interaction.guild;
         const member = interaction.member;
 
-        // Special controls for search buttons
+        // ── Search buttons ──────────────────────────────────────────────────
         if (interaction.customId.startsWith('search_')) {
-            return await this.handleSearchInteraction(interaction, client);
+            return this._handleSearch(interaction, client);
         }
 
-        // Language selection buttons
+        // ── Language buttons ────────────────────────────────────────────────
         if (interaction.customId.startsWith('language_')) {
-            const languageCommand = require('../commands/language.js');
-            return await languageCommand.handleLanguageButton(interaction);
+            const langCmd = require('../commands/language.js');
+            return langCmd.handleLanguageButton(interaction);
         }
 
-        // Help refresh button (doesn't require voice channel)
+        // ── Help refresh ────────────────────────────────────────────────────
         if (interaction.customId === 'help_refresh') {
-            return await this.handleHelpRefresh(interaction);
+            return this._handleHelpRefresh(interaction, client);
         }
 
-        // Check if user is in a voice channel (for music controls)
+        // ── Music controls — require voice channel ──────────────────────────
         if (!member.voice.channel) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.voice_channel_required'),
-                flags: [1 << 6]
-            });
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Voice Channel Required', 'You need to be in a voice channel to use music controls.')
+            ));
         }
 
-        // Get music player
         const player = client.players.get(guild.id);
         if (!player) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.no_music_playing'),
-                flags: [1 << 6]
-            });
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Nothing Playing', 'There is no active music player in this server.')
+            ));
         }
 
-        // Check if user is in the same voice channel as bot
-        if (player.voiceChannel.id !== member.voice.channel.id) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.same_channel_required'),
-                flags: [1 << 6]
-            });
+        if (player.voiceChannel?.id !== member.voice.channel.id) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Wrong Channel', `I'm playing in <#${player.voiceChannel?.id}>. Join that channel first.`)
+            ));
+        }
+
+        // ── Session validation ──────────────────────────────────────────────
+        const [btnType, requesterId, sessionId] = interaction.customId.split(':');
+        if (sessionId && player.sessionId && sessionId !== player.sessionId) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Session Expired', 'These controls belong to a previous session. Use `/nowplaying` for fresh controls.')
+            ));
         }
 
         try {
-            // Parse custom ID for authorization and session validation
-            const customIdParts = interaction.customId.split(':');
-            const [buttonType, requesterId, sessionId] = customIdParts;
-
-            // Session validation for authorized buttons (skip queue button)
-            if (sessionId && player.sessionId && sessionId !== player.sessionId) {
-                return await interaction.reply({
-                    content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.session_invalid'),
-                    flags: [1 << 6]
-                });
-            }
-
-            switch (buttonType) {
-                case 'music_pause':
-                    await this.handlePause(interaction, player, requesterId);
-                    break;
-
-                case 'music_skip':
-                    await this.handleSkip(interaction, player, requesterId);
-                    break;
-
-                case 'music_stop':
-                    await this.handleStop(interaction, player, client, requesterId);
-                    break;
-
-                case 'music_queue':
-                    await this.handleQueue(interaction, player);
-                    break;
-
-                case 'music_shuffle':
-                    await this.handleShuffle(interaction, player, requesterId);
-                    break;
-
-                case 'music_volume':
-                    await this.handleVolumeModal(interaction, player, requesterId);
-                    break;
-
-                case 'music_loop':
-                    await this.handleLoop(interaction, player, requesterId);
-                    break;
-
-                case 'music_autoplay':
-                    await this.handleAutoplay(interaction, player, requesterId);
-                    break;
-
-                case 'music_lyrics':
-                    await this.handleLyrics(interaction, player);
-                    break;
-
+            switch (btnType) {
+                case 'music_pause':    return this._handlePause(interaction, player, requesterId);
+                case 'music_skip':     return this._handleSkip(interaction, player, requesterId);
+                case 'music_stop':     return this._handleStop(interaction, player, client, requesterId);
+                case 'music_queue':    return this._handleQueue(interaction, player);
+                case 'music_shuffle':  return this._handleShuffle(interaction, player, requesterId);
+                case 'music_volume':   return this._handleVolumeModal(interaction, player, requesterId);
+                case 'music_loop':     return this._handleLoop(interaction, player, requesterId);
+                case 'music_autoplay': return this._handleAutoplay(interaction, player, requesterId);
+                case 'music_lyrics':   return this._handleLyrics(interaction, player);
                 default:
-                    await interaction.reply({
-                        content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.unknown_interaction'),
-                        flags: [1 << 6]
-                    });
+                    return interaction.reply(_ephemeral(
+                        MusicEmbedManager.error('Unknown Action', 'This button is not recognised.')
+                    ));
             }
-        } catch (error) {
-
+        } catch (err) {
+            console.error('buttonHandler:', err);
             if (!interaction.replied && !interaction.deferred) {
-                try {
-                    await interaction.reply({
-                        content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.processing_error'),
-                        flags: [1 << 6]
-                    });
-                } catch (replyError) {
-                }
+                interaction.reply(_ephemeral(
+                    MusicEmbedManager.error('Error', 'Something went wrong while processing that action.')
+                )).catch(() => {});
             }
         }
     },
 
-    // Authorization control function
-    isAuthorized(interaction, requesterId) {
-        const member = interaction.member;
-
-        // ManageGuild permission check (Sunucuyu Yönet)
-        if (member.permissions.has('ManageGuild')) return true;
-
-        // DJ role check (if exists)
-        if (member.roles.cache.some(role => role.name.toLowerCase().includes('dj'))) return true;
-
-        // Music starter check
-        if (member.id === requesterId) return true;
-
-        return false;
-    },
-
-    async handlePause(interaction, player, requesterId) {
-
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Pause / Resume ────────────────────────────────────────────────────────
+    async _handlePause(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can do that.')
+            ));
         }
-
         if (!player.currentTrack) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_song_playing'),
-                flags: [1 << 6]
-            });
+            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'There is no track to pause/resume.')));
         }
 
-        let result;
-        let message;
-        let emoji;
+        const wasPaused = player.paused;
+        if (wasPaused) { player.resume(); } else { player.pause(); }
 
-        if (player.paused) {
-            result = player.resume();
-            message = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.music_resumed');
-            emoji = '▶️';
-        } else {
-            result = player.pause();
-            message = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.music_paused');
-            emoji = '⏸️';
-        }
+        const color   = platformColor(player.currentTrack?.platform);
+        const icon    = wasPaused ? '▶️' : '⏸️';
+        const action  = wasPaused ? 'Resumed' : 'Paused';
 
-        if (result) {
-            const actionByLabel = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.action_by');
-            const embed = new EmbedBuilder()
-                .setTitle(`${emoji} ${message}`)
-                .setDescription(`**[${player.currentTrack.title}](${player.currentTrack.url})** ${message}!`)
-                .setColor(config.bot.embedColor)
-                .setTimestamp()
-                .addFields({
-                    name: actionByLabel,
-                    value: `${interaction.member}`,
-                    inline: true
-                });
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setAuthor({ name: `${icon}  ${action}`, iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`**[${player.currentTrack.title}](${player.currentTrack.url})**`)
+            .addFields({ name: `${icon} Action by`, value: `${member_mention(interaction)}`, inline: true })
+            .setTimestamp();
 
-            if (player.currentTrack.thumbnail) {
-                embed.setThumbnail(player.currentTrack.thumbnail);
-            }
+        if (player.currentTrack.thumbnail) embed.setThumbnail(player.currentTrack.thumbnail);
 
-            await interaction.reply({ embeds: [embed], flags: [1 << 6] });
-
-            // Ana embed'deki butonları güncelle (pause/resume değişimi)
-            if (interaction.client.musicEmbedManager) {
-                await interaction.client.musicEmbedManager.updateNowPlayingEmbed(player);
-            }
-        } else {
-            await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.operation_failed'),
-                flags: [1 << 6]
-            });
-        }
+        await interaction.reply(_ephemeral(embed));
+        await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    async handleSkip(interaction, player, requesterId) {
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Skip ─────────────────────────────────────────────────────────────────
+    async _handleSkip(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can skip.')
+            ));
         }
-
         if (!player.currentTrack) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_song_playing'),
-                flags: [1 << 6]
-            });
+            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'There is no track to skip.')));
+        }
+        if (!player.queue?.length) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Queue Empty', 'There are no more tracks in the queue to skip to.')
+            ));
         }
 
-        // Sırada müzik yoksa atlanamaz
-        if (player.queue.length === 0) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_songs_to_skip'),
-                flags: [1 << 6]
+        const skipped = player.currentTrack;
+        player.skip();
+
+        const color = platformColor(skipped.platform);
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setAuthor({ name: '⏭️  Skipped', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`~~${skipped.title}~~`)
+            .addFields(
+                { name: '⏭ Skipped by', value: member_mention(interaction), inline: true },
+            )
+            .setTimestamp();
+
+        if (player.queue?.length > 0) {
+            const next = player.queue[0];
+            embed.addFields({
+                name: '🎵 Up Next',
+                value: `**[${next.title}](${next.url})**  ·  \`${fmtDuration(next.duration)}\``,
+                inline: false,
             });
+            embed.setFooter({ text: `${player.queue.length} track${player.queue.length !== 1 ? 's' : ''} remaining` });
         }
 
-        const currentTrack = player.currentTrack;
-        const skipped = player.skip();
+        if (skipped.thumbnail) embed.setThumbnail(skipped.thumbnail);
 
-        if (skipped) {
-            const embed = new EmbedBuilder()
-                .setTitle(await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.song_skipped_title'))
-                .setDescription(`**[${currentTrack.title}](${currentTrack.url})** ${await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.skipped')}!`)
-                .setColor(config.bot.embedColor)
-                .setTimestamp()
-                .addFields({
-                    name: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.skipped_by'),
-                    value: `${interaction.member}`,
-                    inline: true
-                });
-
-            if (player.queue.length > 0) {
-                embed.addFields({
-                    name: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.next_song'),
-                    value: `[${player.queue[0].title}](${player.queue[0].url})`,
-                    inline: false
-                });
-                embed.setFooter({
-                    text: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.more_songs_in_queue', { count: player.queue.length })
-                });
-            } else {
-                embed.setFooter({
-                    text: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_more_songs')
-                });
-            }
-
-            if (currentTrack.thumbnail) {
-                embed.setThumbnail(currentTrack.thumbnail);
-            }
-
-            await interaction.reply({ embeds: [embed], flags: [1 << 6] });
-
-            // Embed Manager ile ana embed'i güncelle
-            if (interaction.client.musicEmbedManager && player.currentTrack) {
-                await interaction.client.musicEmbedManager.updateNowPlayingEmbed(player);
-            }
-        } else {
-            await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.song_not_skipped'),
-                flags: [1 << 6]
-            });
-        }
+        await interaction.reply(_ephemeral(embed));
+        await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    async handlePrevious(interaction, player) {
-        if (player.previousTracks.length === 0) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_previous_song'),
-                flags: [1 << 6]
-            });
+    // ── Stop ──────────────────────────────────────────────────────────────────
+    async _handleStop(interaction, player, client, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can stop.')
+            ));
         }
 
-        const result = player.previous();
-
-        if (result) {
-            await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.moved_to_previous'),
-                flags: [1 << 6]
-            });
-        } else {
-            await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.previous_failed'),
-                flags: [1 << 6]
-            });
-        }
-    },
-
-    async handleStop(interaction, player, client, requesterId) {
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
-        }
-
-        const queueLength = player.queue.length;
-        const currentTrack = player.currentTrack;
-
+        const track    = player.currentTrack;
+        const queueLen = player.queue?.length ?? 0;
         player.stop();
         client.players.delete(interaction.guild.id);
 
         const embed = new EmbedBuilder()
-            .setTitle(await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.music_stopped_title'))
-            .setDescription(`${currentTrack ? `**[${currentTrack.title}](${currentTrack.url})**` : 'Music'} ${await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.stopped')}!`)
-            .setColor('#FF0000')
-            .setTimestamp()
-            .addFields({
-                name: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.stopped_by'),
-                value: `${interaction.member}`,
-                inline: true
-            });
-
-        if (queueLength > 0) {
-            embed.setFooter({
-                text: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.songs_cleared', { count: queueLength })
-            });
-        }
-
-        await interaction.reply({ embeds: [embed], flags: [1 << 6] });
-
-        // Ana embed'deki butonları disable yap
-        if (client.musicEmbedManager) {
-            await client.musicEmbedManager.handlePlaybackEnd(player);
-        }
-    },
-
-    async handleQueue(interaction, player) {
-        const queueInfo = player.getQueue();
-
-        if (!queueInfo.current && queueInfo.queue.length === 0) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_songs_in_queue'),
-                flags: [1 << 6]
-            });
-        }
-
-        const queueTitle = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.play_queue_title');
-        const embed = new EmbedBuilder()
-            .setTitle(queueTitle)
-            .setColor(config.bot.embedColor)
+            .setColor(config.bot.colors.error)
+            .setAuthor({ name: '⏹️  Stopped', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(
+                track
+                    ? `Stopped **[${track.title}](${track.url})** and cleared the queue.`
+                    : 'Stopped playback and cleared the queue.'
+            )
+            .addFields(
+                { name: '⏹ Stopped by',    value: member_mention(interaction), inline: true },
+                { name: '🗑 Tracks cleared', value: `\`${queueLen + (track ? 1 : 0)}\``,    inline: true },
+            )
             .setTimestamp();
 
-        // Current track
-        if (queueInfo.current) {
-            const currentTime = player.getCurrentTime ? player.getCurrentTime() : 0;
-            const progress = this.createProgressBar(currentTime, queueInfo.current.duration);
+        if (track?.thumbnail) embed.setThumbnail(track.thumbnail);
 
+        await interaction.reply(_ephemeral(embed));
+        await client.musicEmbedManager?.handlePlaybackEnd(player);
+    },
+
+    // ── Queue ─────────────────────────────────────────────────────────────────
+    async _handleQueue(interaction, player) {
+        const current  = player.currentTrack;
+        const queue    = player.queue ?? [];
+
+        if (!current && !queue.length) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Queue Empty', 'Nothing is playing and the queue is empty.')
+            ));
+        }
+
+        const color    = platformColor(current?.platform);
+        const currentMs = player.currentTime ?? player.position ?? 0;
+
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setAuthor({ name: '📋  Queue', iconURL: interaction.client.user.displayAvatarURL() })
+            .setTimestamp();
+
+        if (current) {
+            const progress = buildProgressBar(currentMs, current.duration ?? 0);
             embed.addFields({
-                name: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.now_playing'),
-                value: `**[${queueInfo.current.title}](${queueInfo.current.url})**\n${progress}`,
-                inline: false
+                name: `${player.paused ? '⏸' : '▶️'}  Now Playing`,
+                value: `**[${current.title}](${current.url})**\n${progress}`,
+                inline: false,
             });
         }
 
-        // Queue tracks
-        if (queueInfo.queue.length > 0) {
-            let queueText = '';
-            const tracks = queueInfo.queue.slice(0, 10); // Show first 10
-
-            tracks.forEach((track, index) => {
-                queueText += `\`${index + 1}.\` **[${track.title}](${track.url})**\n`;
-            });
-
-            if (queueInfo.queue.length > 10) {
-                queueText += `\n*${await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.and_more', { count: queueInfo.queue.length - 10 })}*`;
-            }
+        if (queue.length) {
+            const shown = queue.slice(0, 10);
+            const lines = shown.map((t, i) =>
+                `\`${String(i + 1).padStart(2, ' ')}.\` **[${t.title}](${t.url})**  ·  \`${fmtDuration(t.duration)}\``
+            ).join('\n');
 
             embed.addFields({
-                name: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.upcoming_songs', { count: queueInfo.queue.length }),
-                value: queueText,
-                inline: false
+                name: `📋  Up Next  (${queue.length} track${queue.length !== 1 ? 's' : ''})`,
+                value: lines + (queue.length > 10 ? `\n*…and ${queue.length - 10} more*` : ''),
+                inline: false,
             });
         }
 
         embed.setFooter({
-            text: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.total_songs', { count: queueInfo.queue.length + (queueInfo.current ? 1 : 0) })
+            text: `Total: ${queue.length + (current ? 1 : 0)} track${queue.length + (current ? 1 : 0) !== 1 ? 's' : ''}`,
         });
 
-        await interaction.reply({ embeds: [embed], flags: [1 << 6] });
+        await interaction.reply(_ephemeral(embed));
     },
 
-    async handleShuffle(interaction, player, requesterId) {
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Shuffle ───────────────────────────────────────────────────────────────
+    async _handleShuffle(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can shuffle.')
+            ));
+        }
+        if ((player.queue?.length ?? 0) < 2) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Enough Tracks', 'You need at least 2 tracks in the queue to shuffle.')
+            ));
         }
 
-        if (player.queue.length < 2) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.minimum_songs_shuffle'),
-                flags: [1 << 6]
-            });
-        }
-
-        // Shuffle the queue
-        player.shuffleQueue();
-
-        const shuffleTitle = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.queue_shuffled_title');
-        const shuffleDesc = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.songs_shuffled', { count: player.queue.length });
-        const shuffledByLabel = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.shuffled_by');
+        player.shuffleQueue?.();
 
         const embed = new EmbedBuilder()
-            .setTitle(shuffleTitle)
-            .setDescription(shuffleDesc)
-            .setColor(config.bot.embedColor)
-            .setTimestamp()
-            .addFields({
-                name: shuffledByLabel,
-                value: `${interaction.member}`,
-                inline: true
-            });
+            .setColor(config.bot.colors.success)
+            .setAuthor({ name: '🔀  Queue Shuffled', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`**${player.queue.length}** tracks have been shuffled.`)
+            .addFields(
+                { name: '🔀 Shuffled by', value: member_mention(interaction), inline: true },
+            );
 
-        // Show first few shuffled tracks
         if (player.queue.length > 0) {
-            const nextTracks = player.queue.slice(0, 3);
-            let trackList = '';
-            nextTracks.forEach((track, index) => {
-                trackList += `${index + 1}. **[${track.title}](${track.url})**\n`;
-            });
-
-            const nextSongsLabel = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.next_songs');
             embed.addFields({
-                name: nextSongsLabel,
-                value: trackList,
-                inline: false
+                name: '🎵 New First Three',
+                value: player.queue.slice(0, 3)
+                    .map((t, i) => `\`${i + 1}.\` **${t.title}**`)
+                    .join('\n'),
+                inline: false,
             });
         }
 
-        await interaction.reply({ embeds: [embed], flags: [1 << 6] });
+        embed.setTimestamp();
 
-        // Ana embed'i güncelle
-        if (interaction.client.musicEmbedManager) {
-            await interaction.client.musicEmbedManager.updateNowPlayingEmbed(player);
-        }
+        await interaction.reply(_ephemeral(embed));
+        await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    async handleVolumeModal(interaction, player, requesterId) {
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Volume modal ──────────────────────────────────────────────────────────
+    async _handleVolumeModal(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change volume.')
+            ));
         }
-
-        const volumeTitle = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.set_volume_title');
-        const volumeLabel = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.volume_label');
 
         const modal = new ModalBuilder()
             .setCustomId('volume_modal')
-            .setTitle(volumeTitle);
+            .setTitle('🔊  Set Volume');
 
-        const volumeInput = new TextInputBuilder()
-            .setCustomId('volume_input')
-            .setLabel(volumeLabel)
-            .setStyle(TextInputStyle.Short)
-            .setMinLength(1)
-            .setMaxLength(3)
-            .setPlaceholder('50')
-            .setRequired(true);
-
-        const actionRow = new ActionRowBuilder().addComponents(volumeInput);
-        modal.addComponents(actionRow);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                    .setCustomId('volume_input')
+                    .setLabel(`Current: ${player.volume ?? 80}%  —  Enter new value (0–100)`)
+                    .setStyle(TextInputStyle.Short)
+                    .setMinLength(1)
+                    .setMaxLength(3)
+                    .setPlaceholder('e.g. 75')
+                    .setRequired(true)
+            )
+        );
 
         await interaction.showModal(modal);
     },
 
-    async handleLoop(interaction, player, requesterId) {
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Loop ──────────────────────────────────────────────────────────────────
+    async _handleLoop(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change loop mode.')
+            ));
         }
-
         if (!player.currentTrack) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.no_song_playing'),
-                flags: [1 << 6]
-            });
+            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'No track is playing.')));
         }
 
-        // Cycle through loop modes: false -> 'track' -> 'queue' -> false
-        let newLoopMode;
-        let modeMessage;
-        let modeEmoji;
-
-        if (player.loop === false || player.loop === 'off') {
-            newLoopMode = 'track';
-            modeMessage = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.loop_mode_track');
-            modeEmoji = '🔂';
+        // Cycle: off → track → queue → off
+        let newMode, icon, label;
+        if (!player.loop || player.loop === 'off' || player.loop === false) {
+            newMode = 'track'; icon = '🔂'; label = 'Loop: Track';
         } else if (player.loop === 'track') {
-            newLoopMode = 'queue';
-            modeMessage = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.loop_mode_queue');
-            modeEmoji = '🔁';
+            newMode = 'queue'; icon = '🔁'; label = 'Loop: Queue';
         } else {
-            newLoopMode = false;
-            modeMessage = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.loop_mode_off');
-            modeEmoji = '➡️';
+            newMode = false;   icon = '➡️'; label = 'Loop: Off';
         }
-
-        // Update player loop mode
-        player.loop = newLoopMode;
-
-        const loopTitle = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.loop_mode_changed_title');
-        const changedByLabel = await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.changed_by');
+        player.loop = newMode;
 
         const embed = new EmbedBuilder()
-            .setTitle(`${modeEmoji} ${loopTitle}`)
-            .setDescription(modeMessage)
-            .setColor(config.bot.embedColor)
-            .setTimestamp()
-            .addFields({
-                name: changedByLabel,
-                value: `${interaction.member}`,
-                inline: true
-            });
+            .setColor(config.bot.colors.info)
+            .setAuthor({ name: `${icon}  Loop Mode Changed`, iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`Loop mode set to **${label}**.`)
+            .addFields({ name: `${icon} Changed by`, value: member_mention(interaction), inline: true })
+            .setTimestamp();
 
-        if (player.currentTrack && player.currentTrack.thumbnail) {
-            embed.setThumbnail(player.currentTrack.thumbnail);
-        }
+        if (player.currentTrack?.thumbnail) embed.setThumbnail(player.currentTrack.thumbnail);
 
-        await interaction.reply({ embeds: [embed], flags: [1 << 6] });
-
-        // Update the main embed to reflect the new loop mode
-        if (interaction.client.musicEmbedManager) {
-            await interaction.client.musicEmbedManager.updateNowPlayingEmbed(player);
-        }
+        await interaction.reply(_ephemeral(embed));
+        await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    async handleAutoplay(interaction, player, requesterId) {
-        const { StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder } = require('discord.js');
-        
-        // Authorization check
-        if (!this.isAuthorized(interaction, requesterId)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.not_authorized'),
-                flags: [1 << 6]
-            });
+    // ── Autoplay ──────────────────────────────────────────────────────────────
+    async _handleAutoplay(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_ephemeral(
+                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change autoplay.')
+            ));
         }
 
-        // If autoplay is already enabled, turn it off
+        // If already on → turn off
         if (player.autoplay) {
             player.autoplay = false;
-            
             const embed = new EmbedBuilder()
-                .setTitle('🎲 ' + await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.autoplay_disabled'))
-                .setDescription(await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.autoplay_disabled_desc'))
-                .setColor(config.bot.embedColor)
+                .setColor(config.bot.colors.warning)
+                .setAuthor({ name: '🎲  Autoplay Disabled', iconURL: interaction.client.user.displayAvatarURL() })
+                .setDescription('Autoplay has been turned **off**. The bot will stop when the queue is empty.')
                 .setTimestamp();
 
-            await interaction.reply({ embeds: [embed], flags: [1 << 6] });
-            
-            // Update the main embed
-            if (interaction.client.musicEmbedManager) {
-                await interaction.client.musicEmbedManager.updateNowPlayingEmbed(player);
-            }
+            await interaction.reply(_ephemeral(embed));
+            await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
             return;
         }
 
-        // Show genre selection menu
+        // Show genre picker
+        const genres = [
+            { label: 'Pop',        value: 'pop',        emoji: '🎤' },
+            { label: 'Rock',       value: 'rock',       emoji: '🎸' },
+            { label: 'Hip-Hop',    value: 'hiphop',     emoji: '🎧' },
+            { label: 'Electronic', value: 'electronic', emoji: '🎛️' },
+            { label: 'Jazz',       value: 'jazz',       emoji: '🎷' },
+            { label: 'Classical',  value: 'classical',  emoji: '🎻' },
+            { label: 'Metal',      value: 'metal',      emoji: '🤘' },
+            { label: 'Country',    value: 'country',    emoji: '🤠' },
+            { label: 'R&B',        value: 'rnb',        emoji: '💃' },
+            { label: 'Indie',      value: 'indie',      emoji: '🌿' },
+            { label: 'Latin',      value: 'latin',      emoji: '🪇' },
+            { label: 'K-Pop',      value: 'kpop',       emoji: '🇰🇷' },
+            { label: 'Anime',      value: 'anime',      emoji: '🎌' },
+            { label: 'Lo-Fi',      value: 'lofi',       emoji: '🌙' },
+            { label: 'Random',     value: 'random',     emoji: '🎲' },
+        ];
+
         const select = new StringSelectMenuBuilder()
             .setCustomId(`autoplay_genre:${requesterId}:${player.sessionId}`)
-            .setPlaceholder(await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.autoplay_select_genre'))
-            .addOptions(
+            .setPlaceholder('Choose a genre for autoplay…')
+            .addOptions(genres.map(g =>
                 new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.pop'))
-                    .setValue('pop')
-                    .setEmoji('🎤'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.rock'))
-                    .setValue('rock')
-                    .setEmoji('🎸'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.hiphop'))
-                    .setValue('hiphop')
-                    .setEmoji('🎧'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.electronic'))
-                    .setValue('electronic')
-                    .setEmoji('🎛️'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.jazz'))
-                    .setValue('jazz')
-                    .setEmoji('🎷'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.classical'))
-                    .setValue('classical')
-                    .setEmoji('🎻'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.metal'))
-                    .setValue('metal')
-                    .setEmoji('🤘'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.country'))
-                    .setValue('country')
-                    .setEmoji('🤠'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.rnb'))
-                    .setValue('rnb')
-                    .setEmoji('💃'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.indie'))
-                    .setValue('indie')
-                    .setEmoji('🌿'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.latin'))
-                    .setValue('latin')
-                    .setEmoji('💃'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.kpop'))
-                    .setValue('kpop')
-                    .setEmoji('🇰🇷'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.anime'))
-                    .setValue('anime')
-                    .setEmoji('🎌'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.lofi'))
-                    .setValue('lofi')
-                    .setEmoji('🌙'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(await LanguageManager.getTranslation(interaction.guild?.id, 'genres.random'))
-                    .setValue('random')
-                    .setEmoji('🎲')
-            );
-
-        const row = new ActionRowBuilder().addComponents(select);
+                    .setLabel(g.label)
+                    .setValue(g.value)
+                    .setEmoji(g.emoji)
+            ));
 
         const embed = new EmbedBuilder()
-            .setTitle('🎲 ' + await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.autoplay_select_title'))
-            .setDescription(await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.autoplay_select_desc'))
-            .setColor(config.bot.embedColor);
-
-        await interaction.reply({
-            embeds: [embed],
-            components: [row],
-            flags: [1 << 6]
-        });
-    },
-
-    createProgressBar(current, total) {
-        if (!total || total === 0) return '0:00 / 0:00';
-
-        const currentSeconds = Math.floor(current / 1000);
-        const totalSeconds = Math.floor(total);
-        const progress = Math.floor((currentSeconds / totalSeconds) * 20);
-
-        const bar = '█'.repeat(progress) + '░'.repeat(20 - progress);
-
-        return `${this.formatTime(currentSeconds)} [${'▓'.repeat(progress)}${'░'.repeat(20 - progress)}] ${this.formatTime(totalSeconds)}`;
-    },
-
-    formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        } else {
-            return `${minutes}:${secs.toString().padStart(2, '0')}`;
-        }
-    },
-
-    async handleHelpRefresh(interaction) {
-        try {
-            // Defer the interaction to show loading state
-            await interaction.deferUpdate();
-
-            // Clear language cache to ensure fresh language data
-            await LanguageManager.refreshServerLanguage(interaction.guild.id);
-
-            // Get help command and recreate the embed with fresh data
-            const guildId = interaction.guild.id;
-            const client = interaction.client;
-
-            // Get translations
-            const t = {
-                title: await LanguageManager.getTranslation(guildId, 'commands.help.title'),
-                description: await LanguageManager.getTranslation(guildId, 'commands.help.main_description'),
-                commandsTitle: await LanguageManager.getTranslation(guildId, 'commands.help.commands_title'),
-                commandsList: await LanguageManager.getTranslation(guildId, 'commands.help.commands_list'),
-                buttonControlsTitle: await LanguageManager.getTranslation(guildId, 'commands.help.button_controls_title'),
-                buttonControlsList: await LanguageManager.getTranslation(guildId, 'commands.help.button_controls_list'),
-                platformsTitle: await LanguageManager.getTranslation(guildId, 'commands.help.platforms_title'),
-                platformsList: await LanguageManager.getTranslation(guildId, 'commands.help.platforms_list'),
-                featuresTitle: await LanguageManager.getTranslation(guildId, 'commands.help.features_title'),
-                featuresList: await LanguageManager.getTranslation(guildId, 'commands.help.features_list'),
-                howtoTitle: await LanguageManager.getTranslation(guildId, 'commands.help.howto_title'),
-                howtoList: await LanguageManager.getTranslation(guildId, 'commands.help.howto_list'),
-                statisticsTitle: await LanguageManager.getTranslation(guildId, 'commands.help.statistics_title'),
-                linksTitle: await LanguageManager.getTranslation(guildId, 'commands.help.links_title'),
-                footerText: await LanguageManager.getTranslation(guildId, 'commands.help.footer_text'),
-                buttonWebsite: await LanguageManager.getTranslation(guildId, 'commands.help.button_website'),
-                buttonSupport: await LanguageManager.getTranslation(guildId, 'commands.help.button_support'),
-                buttonRefresh: await LanguageManager.getTranslation(guildId, 'commands.help.button_refresh')
-            };
-
-            const embed = new EmbedBuilder()
-                .setTitle(t.title)
-                .setDescription(t.description)
-                .setColor(config.bot.embedColor)
-                .setThumbnail(client.user.displayAvatarURL())
-                .setTimestamp();
-
-            // Commands
-            embed.addFields({
-                name: t.commandsTitle,
-                value: Array.isArray(t.commandsList) ? t.commandsList.join('\n') : t.commandsList,
-                inline: false
-            });
-
-            // Button Controls
-            embed.addFields({
-                name: t.buttonControlsTitle,
-                value: Array.isArray(t.buttonControlsList) ? t.buttonControlsList.join('\n') : t.buttonControlsList,
-                inline: false
-            });
-
-            // Supported Platforms
-            embed.addFields({
-                name: t.platformsTitle,
-                value: Array.isArray(t.platformsList) ? t.platformsList.join('\n') : t.platformsList,
-                inline: false
-            });
-
-            // Features
-            embed.addFields({
-                name: t.featuresTitle,
-                value: Array.isArray(t.featuresList) ? t.featuresList.join('\n') : t.featuresList,
-                inline: false
-            });
-
-            // How to Use
-            embed.addFields({
-                name: t.howtoTitle,
-                value: Array.isArray(t.howtoList) ? t.howtoList.join('\n') : t.howtoList,
-                inline: false
-            });
-
-            // Statistics - Fetch from all shards if sharding is enabled
-            let guilds, users, activeServers;
-
-            if (client.shard) {
-                // Sharding is enabled - fetch from all shards
-                try {
-                    // Fetch guild counts from all shards
-                    const guildCounts = await client.shard.fetchClientValues('guilds.cache.size');
-                    guilds = guildCounts.reduce((acc, count) => acc + count, 0);
-
-                    // Fetch member counts from all shards
-                    const memberCounts = await client.shard.broadcastEval(c => 
-                        c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)
-                    );
-                    users = memberCounts.reduce((acc, count) => acc + count, 0);
-
-                    // Fetch active players from all shards
-                    const activePlayers = await client.shard.broadcastEval(c => c.players.size);
-                    activeServers = activePlayers.reduce((acc, count) => acc + count, 0);
-                } catch (error) {
-                    console.error('Error fetching shard statistics:', error);
-                    // Fallback to local shard data
-                    guilds = client.guilds.cache.size;
-                    users = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
-                    activeServers = client.players.size;
-                }
-            } else {
-                // No sharding - use local data
-                guilds = client.guilds.cache.size;
-                users = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
-                activeServers = client.players.size;
-            }
-
-            const helpCommand = require('../commands/help.js');
-            const statsServers = await LanguageManager.getTranslation(guildId, 'commands.help.stats_servers', { count: guilds });
-            const statsUsers = await LanguageManager.getTranslation(guildId, 'commands.help.stats_users', { count: users.toLocaleString() });
-            const statsActive = await LanguageManager.getTranslation(guildId, 'commands.help.stats_active', { count: activeServers });
-            const statsUptime = await LanguageManager.getTranslation(guildId, 'commands.help.stats_uptime', { time: helpCommand.formatUptime(process.uptime()) });
-
-            embed.addFields({
-                name: t.statisticsTitle,
-                value: [
-                    statsServers,
-                    statsUsers,
-                    statsActive,
-                    statsUptime
-                ].join('\n'),
-                inline: true
-            });
-
-            // Links
-            embed.addFields({
-                name: t.linksTitle,
-                value: [
-                    `[🌐 Website](${config.bot.website})`,
-                    `[💬 Support Server](${config.bot.supportServer})`,
-                    `[📄 Invite Bot](${config.bot.invite})`
-                ].join('\n'),
-                inline: true
-            });
-
-            embed.setFooter({
-                text: `${client.user.username} • ${t.footerText}`,
-                iconURL: client.user.displayAvatarURL()
-            });
-
-            // Buttons - keep the same components
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setLabel(t.buttonWebsite)
-                        .setURL(config.bot.website)
-                        .setStyle(ButtonStyle.Link),
-                    new ButtonBuilder()
-                        .setLabel(t.buttonSupport)
-                        .setURL(config.bot.supportServer)
-                        .setStyle(ButtonStyle.Link),
-                    new ButtonBuilder()
-                        .setCustomId('help_refresh')
-                        .setLabel(t.buttonRefresh)
-                        .setEmoji('🔄')
-                        .setStyle(ButtonStyle.Secondary)
-                );
-
-            await interaction.editReply({
-                embeds: [embed],
-                components: [row]
-            });
-
-        } catch (error) {
-            console.error('Error refreshing help:', error);
-            try {
-                if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({
-                        content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.refresh_error'),
-                        flags: [1 << 6]
-                    });
-                } else {
-                    await interaction.followUp({
-                        content: await LanguageManager.getTranslation(interaction.guild?.id, 'buttonhandler.refresh_error'),
-                        flags: [1 << 6]
-                    });
-                }
-            } catch (err) {
-                console.error('Failed to send error message:', err);
-            }
-        }
-    },
-
-    async handleSearchInteraction(interaction, client) {
-        const member = interaction.member;
-        const guild = interaction.guild;
-
-        // Check if user is in a voice channel
-        if (!member.voice.channel) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.voice_channel_required'),
-                flags: [1 << 6]
-            });
-        }
-
-        // Check search results
-        if (!global.searchResults || !global.searchResults.has(interaction.user.id)) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.search_expired'),
-                flags: [1 << 6]
-            });
-        }
-
-        const userSearchData = global.searchResults.get(interaction.user.id);
-
-        if (interaction.customId === 'search_cancel') {
-            global.searchResults.delete(interaction.user.id);
-
-            const embed = new EmbedBuilder()
-                .setTitle(await LanguageManager.getTranslation(guild?.id, 'buttonhandler.search_cancelled_title'))
-                .setDescription(await LanguageManager.getTranslation(guild?.id, 'buttonhandler.search_cancelled_desc'))
-                .setColor('#FF0000')
-                .setTimestamp();
-
-            return await interaction.update({
-                embeds: [embed],
-                components: []
-            });
-        }
-
-        // Get selected song index
-        const selectedIndex = parseInt(interaction.customId.replace('search_select_', ''));
-        const selectedTrack = userSearchData.results[selectedIndex];
-
-        if (!selectedTrack) {
-            return await interaction.reply({
-                content: await LanguageManager.getTranslation(guild?.id, 'buttonhandler.invalid_selection'),
-                flags: [1 << 6]
-            });
-        }
-
-        await interaction.deferUpdate();
-
-        // Işlem mesajı göster
-        const processingEmbed = new EmbedBuilder()
-            .setTitle('🔄 ' + await LanguageManager.getTranslation(guild?.id, 'buttonhandler.processing'))
-            .setDescription(await LanguageManager.getTranslation(guild?.id, 'buttonhandler.adding_song_desc', { title: selectedTrack.title }))
-            .setColor('#FFAA00')
+            .setColor(config.bot.colors.default)
+            .setAuthor({ name: '🎲  Autoplay — Genre Select', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription('Pick a genre. Once the queue is empty the bot will automatically queue matching tracks.')
             .setTimestamp();
 
-        await interaction.editReply({
-            embeds: [processingEmbed],
-            components: []
-        });
-
-        try {
-            // Embed Manager ile işle
-            const MusicEmbedManager = require('../src/MusicEmbedManager');
-            if (!client.musicEmbedManager) {
-                client.musicEmbedManager = new MusicEmbedManager(client);
-            }
-
-            // Ensure music player exists and is configured
-            if (!client.players) {
-                client.players = new Map();
-            }
-
-            let player = client.players.get(guild.id);
-            if (!player) {
-                player = new MusicPlayer(guild, interaction.channel, member.voice.channel);
-                client.players.set(guild.id, player);
-            }
-
-            player.voiceChannel = member.voice.channel;
-            player.textChannel = interaction.channel;
-
-            // Seçilen şarkıyı işle
-            const result = await client.musicEmbedManager.handleMusicData(
-                guild.id,
-                {
-                    isPlaylist: false,
-                    tracks: [selectedTrack]
-                },
-                member,
-                interaction
-            );
-
-            // Search results temizle
-            global.searchResults.delete(interaction.user.id);
-
-            if (!result.success) {
-                const errorEmbed = new EmbedBuilder()
-                    .setTitle('❌ ' + await LanguageManager.getTranslation(guild?.id, 'buttonhandler.error_title'))
-                    .setDescription(result.message)
-                    .setColor('#FF0000')
-                    .setTimestamp();
-
-                return await interaction.editReply({
-                    embeds: [errorEmbed],
-                    components: []
-                });
-            }
-
-        } catch (error) {
-            const errorEmbed = new EmbedBuilder()
-                .setTitle('❌ ' + await LanguageManager.getTranslation(guild?.id, 'buttonhandler.error_title'))
-                .setDescription(await LanguageManager.getTranslation(guild?.id, 'buttonhandler.processing_error'))
-                .setColor('#FF0000')
-                .setTimestamp();
-
-            await interaction.editReply({
-                embeds: [errorEmbed],
-                components: []
-            });
-        }
+        await interaction.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)], flags: [1 << 6] });
     },
 
-    async handleLyrics(interaction, player) {
-        const LyricsManager = require('../src/LyricsManager');
-        const guildId = interaction.guild?.id;
-
-        try {
-            if (!player.currentTrack) {
-                return await interaction.reply({
-                    content: await LanguageManager.getTranslation(guildId, 'buttonhandler.no_song_playing'),
-                    flags: [1 << 6]
-                });
-            }
-
-            if (!player.hasLyrics || !player.hasLyrics()) {
-                const noLyricsMsg = await LanguageManager.getTranslation(guildId, 'buttonhandler.no_lyrics_found') || 'No lyrics found for this song.';
-                return await interaction.reply({
-                    content: `🎤 ${noLyricsMsg}`,
-                    flags: [1 << 6]
-                });
-            }
-
-            await interaction.deferReply({ ephemeral: true });
-
-            const lyricsData = player.currentLyrics;
-            const pages = LyricsManager.formatFullLyrics(lyricsData, 4000);
-
-            if (pages.length === 0) {
-                return await interaction.editReply({
-                    content: await LanguageManager.getTranslation(guildId, 'buttonhandler.lyrics_unavailable') || 'Lyrics are unavailable.'
-                });
-            }
-
-            const lyricsTitle = await LanguageManager.getTranslation(guildId, 'buttonhandler.lyrics_title') || 'Song Lyrics';
-            
-            // If only one page, send directly
-            if (pages.length === 1) {
-                const embed = new EmbedBuilder()
-                    .setTitle(`🎤 ${lyricsTitle}`)
-                    .setDescription(`**${player.currentTrack.title}**\n${player.currentTrack.artist ? `*by ${player.currentTrack.artist}*\n` : ''}\n${pages[0]}`)
-                    .setColor(config.bot.embedColor)
-                    .setFooter({ text: `Source: ${lyricsData.source}` })
-                    .setTimestamp();
-
-                return await interaction.editReply({ embeds: [embed] });
-            }
-
-            // Multiple pages - send with pagination buttons
-            let currentPage = 0;
-
-            const createLyricsEmbed = (pageIndex) => {
-                return new EmbedBuilder()
-                    .setTitle(`🎤 ${lyricsTitle}`)
-                    .setDescription(`**${player.currentTrack.title}**\n${player.currentTrack.artist ? `*by ${player.currentTrack.artist}*\n` : ''}\n${pages[pageIndex]}`)
-                    .setColor(config.bot.embedColor)
-                    .setFooter({ text: `Source: ${lyricsData.source} | Page ${pageIndex + 1}/${pages.length}` })
-                    .setTimestamp();
-            };
-
-            const createPaginationButtons = (pageIndex) => {
-                const prevButton = new ButtonBuilder()
-                    .setCustomId('lyrics_prev')
-                    .setLabel('◀ Previous')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(pageIndex === 0);
-
-                const nextButton = new ButtonBuilder()
-                    .setCustomId('lyrics_next')
-                    .setLabel('Next ▶')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(pageIndex === pages.length - 1);
-                return new ActionRowBuilder().addComponents(prevButton, nextButton);
-            };
-
-            await interaction.editReply({
-                embeds: [createLyricsEmbed(currentPage)],
-                components: [createPaginationButtons(currentPage)]
-            });
-
-            // Fetch the reply message for the collector
-            const message = await interaction.fetchReply();
-
-            // Collector for pagination
-            const collector = message.createMessageComponentCollector({
-                filter: i => i.user.id === interaction.user.id,
-                time: 300000 // 5 minutes
-            });
-
-            collector.on('collect', async i => {
-                try {
-                    // Log to see what's happening
-                    console.log('🔍 Button clicked:', i.customId, 'by', i.user.tag);
-                    console.log('🔍 Current page:', currentPage, 'Total pages:', pages.length);
-
-                    if (i.customId === 'lyrics_prev' && currentPage > 0) {
-                        currentPage--;
-                    } else if (i.customId === 'lyrics_next' && currentPage < pages.length - 1) {
-                        currentPage++;
-                    }
-
-                    console.log('🔍 New page:', currentPage);
-
-                    // Try deferUpdate first, then update
-                    if (!i.deferred && !i.replied) {
-                        await i.deferUpdate();
-                    }
-
-                    await message.edit({
-                        embeds: [createLyricsEmbed(currentPage)],
-                        components: [createPaginationButtons(currentPage)]
-                    });
-
-                } catch (error) {
-                    console.error('❌ Pagination error details:', {
-                        code: error.code,
-                        message: error.message,
-                        deferred: i.deferred,
-                        replied: i.replied
-                    });
-                    
-                    // Ignore interaction timeout/unknown interaction errors
-                    if (error.code === 10062 || error.code === 10008 || error.code === 40060) {
-                        console.log('ℹ️ Interaction expired or unknown, ignoring...');
-                    }
-                }
-            });
-
-            collector.on('end', () => {
-                interaction.editReply({ components: [] }).catch(() => {});
-            });
-
-        } catch (error) {
-            console.error('❌ Lyrics handler error:', error);
-            const errorMsg = await LanguageManager.getTranslation(guildId, 'buttonhandler.lyrics_error') || 'Failed to load lyrics.';
-            if (interaction.deferred) {
-                await interaction.editReply({ content: errorMsg });
-            } else {
-                await interaction.reply({ content: errorMsg, ephemeral: true });
-            }
+    // ── Lyrics ────────────────────────────────────────────────────────────────
+    async _handleLyrics(interaction, player) {
+        if (!player.currentTrack) {
+            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'No track is currently playing.')));
         }
-    }
+
+        await interaction.deferReply({ flags: [1 << 6] });
+
+        const lyrics = player.currentLyrics;
+        if (!lyrics?.pages?.length) {
+            return interaction.editReply({ embeds: [MusicEmbedManager.error('No Lyrics', `Could not find lyrics for **${player.currentTrack.title}**.`)] });
+        }
+
+        const buildPage = (i) => new EmbedBuilder()
+            .setColor(platformColor(player.currentTrack?.platform))
+            .setAuthor({ name: '🎤  Lyrics', iconURL: interaction.client.user.displayAvatarURL() })
+            .setTitle(player.currentTrack.title)
+            .setURL(player.currentTrack.url || null)
+            .setDescription(lyrics.pages[i])
+            .setFooter({ text: `Page ${i + 1} / ${lyrics.pages.length}  ·  Source: ${lyrics.source || 'Unknown'}` })
+            .setTimestamp();
+
+        let page = 0;
+        const msg = await interaction.editReply({ embeds: [buildPage(page)], components: _lyricsRow(page, lyrics.pages.length) });
+
+        if (lyrics.pages.length <= 1) return;
+
+        const collector = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 5 * 60_000 });
+        collector.on('collect', async i => {
+            if (i.customId === 'lyrics_prev') page = Math.max(0, page - 1);
+            if (i.customId === 'lyrics_next') page = Math.min(lyrics.pages.length - 1, page + 1);
+            await i.update({ embeds: [buildPage(page)], components: _lyricsRow(page, lyrics.pages.length) });
+        });
+        collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
+    },
+
+    // ── Search interaction ────────────────────────────────────────────────────
+    async _handleSearch(interaction, client) {
+        if (interaction.customId === 'search_cancel') {
+            global.searchResults?.delete(interaction.user.id);
+            return interaction.update({
+                embeds: [MusicEmbedManager.info('🚫  Cancelled', 'Search cancelled.', config.bot.colors.warning)],
+                components: [],
+            });
+        }
+
+        const idx     = parseInt(interaction.customId.replace('search_select_', ''), 10);
+        const stored  = global.searchResults?.get(interaction.user.id);
+
+        if (!stored?.results?.length) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Expired', 'Search results have expired. Run `/search` again.')],
+                components: [],
+            });
+        }
+
+        const track  = stored.results[idx];
+        if (!track) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Invalid', 'Could not find that result. Run `/search` again.')],
+                components: [],
+            });
+        }
+
+        global.searchResults.delete(interaction.user.id);
+
+        // ── Validate voice ──
+        const member = interaction.member;
+        const guild  = interaction.guild;
+
+        if (!member.voice.channel) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Voice Channel Required', 'Join a voice channel first.')],
+                components: [],
+            });
+        }
+
+        const { PermissionFlagsBits } = require('discord.js');
+        const perms = member.voice.channel.permissionsFor(guild.members.me);
+        if (!perms?.has(PermissionFlagsBits.Connect) || !perms?.has(PermissionFlagsBits.Speak)) {
+            return interaction.update({
+                embeds: [MusicEmbedManager.error('Missing Permissions', 'I need Connect and Speak permissions.')],
+                components: [],
+            });
+        }
+
+        // ── Show selected ──
+        await interaction.update({
+            embeds: [
+                new EmbedBuilder()
+                    .setColor(config.bot.colors.youtube)
+                    .setAuthor({ name: '🔴 YouTube  ·  Selected', iconURL: client.user.displayAvatarURL() })
+                    .setTitle(track.title || 'Unknown')
+                    .setURL(track.url || null)
+                    .setDescription(`**Duration:** \`${fmtDuration(track.duration)}\`\n**Artist:** \`${track.artist || track.author || 'Unknown'}\``)
+                    .setFooter({ text: 'Adding to queue…' })
+                    .setTimestamp(),
+            ],
+            components: [],
+        });
+
+        // ── Queue it ──
+        let player = client.players.get(guild.id);
+        if (!player) {
+            const MusicPlayer = require('../src/MusicPlayer');
+            player = new MusicPlayer(guild, interaction.channel, member.voice.channel);
+            client.players.set(guild.id, player);
+        }
+        player.voiceChannel = member.voice.channel;
+        player.textChannel  = interaction.channel;
+
+        if (!client.musicEmbedManager) {
+            client.musicEmbedManager = new MusicEmbedManager(client);
+        }
+
+        await client.musicEmbedManager.handleMusicData(
+            guild.id,
+            { tracks: [track], isPlaylist: false },
+            member,
+            null,
+        );
+    },
+
+    // ── Help refresh ──────────────────────────────────────────────────────────
+    async _handleHelpRefresh(interaction, client) {
+        await interaction.deferUpdate();
+        const helpCmd = require('../commands/help.js');
+        const embed   = await helpCmd._buildEmbed(client, interaction.guild.id);
+        const row     = helpCmd._buildButtons();
+        await interaction.editReply({ embeds: [embed], components: [row] });
+    },
 };
+
+// ── Tiny helpers ──────────────────────────────────────────────────────────────
+
+function member_mention(interaction) {
+    return `<@${interaction.member.id}>`;
+}
+
+function _lyricsRow(page, total) {
+    return [
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('lyrics_prev')
+                .setLabel('Previous')
+                .setEmoji('⬅️')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page === 0),
+            new ButtonBuilder()
+                .setCustomId('lyrics_next')
+                .setLabel('Next')
+                .setEmoji('➡️')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page === total - 1),
+        ),
+    ];
+}

@@ -1,210 +1,284 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const MusicPlayer = require('../src/MusicPlayer');
+'use strict';
+
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const config         = require('../config');
+const MusicPlayer    = require('../src/MusicPlayer');
 const MusicEmbedManager = require('../src/MusicEmbedManager');
-const LanguageManager = require('../src/LanguageManager');
-const ErrorHandler = require('../src/ErrorHandler');
+const LanguageManager   = require('../src/LanguageManager');
+const ErrorHandler      = require('../src/ErrorHandler');
+
+// ─── Platform detection ──────────────────────────────────────────────────────
+
+function detectPlatform(query) {
+    const q = query.toLowerCase();
+    if (q.includes('youtube.com') || q.includes('youtu.be'))  return 'youtube';
+    if (q.includes('spotify.com'))                             return 'spotify';
+    if (q.includes('soundcloud.com'))                          return 'soundcloud';
+    if (q.startsWith('http') && /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus|webm|mp4)(\?|$)/i.test(q))
+        return 'direct';
+    return 'youtube'; // default: YouTube text search
+}
+
+// ─── Searching embed ─────────────────────────────────────────────────────────
+
+function buildSearchingEmbed(platform, query, clientUser) {
+    const badge = {
+        youtube:    { label: '🔴 YouTube',    color: config.bot.colors.youtube    },
+        spotify:    { label: '🟢 Spotify',    color: config.bot.colors.spotify    },
+        soundcloud: { label: '🟠 SoundCloud', color: config.bot.colors.soundcloud },
+        direct:     { label: '🔗 Direct Link',color: config.bot.colors.direct     },
+    }[platform] || { label: '🎵 Music', color: config.bot.colors.default };
+
+    return new EmbedBuilder()
+        .setColor(badge.color)
+        .setAuthor({
+            name: `${badge.label}  ·  Searching…`,
+            iconURL: clientUser.displayAvatarURL(),
+        })
+        .setDescription(`> 🔍  **${query}**`)
+        .setFooter({ text: 'This may take a moment for playlists…' })
+        .setTimestamp();
+}
+
+// ─── Playlist / type info embed ──────────────────────────────────────────────
+
+function buildPlaylistInfoEmbed(platform, type, name, count, url, thumbnail, clientUser) {
+    const colors = {
+        youtube:    config.bot.colors.youtube,
+        spotify:    config.bot.colors.spotify,
+        soundcloud: config.bot.colors.soundcloud,
+    };
+    const typeLabel = {
+        playlist: '📋 Playlist',
+        album:    '💿 Album',
+        artist:   '🎤 Artist Top Tracks',
+        track:    '🎵 Track',
+    }[type] || '🎵 Music';
+
+    const embed = new EmbedBuilder()
+        .setColor(colors[platform] || config.bot.colors.default)
+        .setAuthor({
+            name: `${typeLabel}  ·  Loaded`,
+            iconURL: clientUser.displayAvatarURL(),
+        })
+        .setTitle(name || 'Unknown')
+        .setURL(url || null)
+        .setDescription(`**${count}** tracks added to the queue.`)
+        .setTimestamp()
+        .setFooter({ text: 'Use /nowplaying to see the current track.' });
+
+    if (thumbnail) embed.setThumbnail(thumbnail);
+    return embed;
+}
+
+// ─── Command ─────────────────────────────────────────────────────────────────
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
-        .setDescription('Plays music - Supports YouTube, Spotify, SoundCloud or direct links')
-        .addStringOption(option =>
-            option.setName('query')
-                .setDescription('Song name, artist, YouTube/Spotify/SoundCloud URL or direct link')
-                .setRequired(true)
+        .setDescription('Play music from YouTube, Spotify, SoundCloud or a direct link')
+        .addStringOption(opt =>
+            opt.setName('query')
+               .setDescription('Song name, artist, URL (YouTube / Spotify / SoundCloud) or direct audio link')
+               .setRequired(true)
         ),
 
     async execute(interaction, client) {
         try {
-            // Defer reply
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferReply();
-            }
+            if (!interaction.deferred && !interaction.replied) await interaction.deferReply();
 
-            const query = interaction.options.getString('query');
+            const query  = interaction.options.getString('query');
             const member = interaction.member;
-            const guild = interaction.guild;
+            const guild  = interaction.guild;
             const channel = interaction.channel;
 
-            // Temel kontroller
-            const validationResult = await this.validateRequest(interaction, member, guild);
-            if (!validationResult.success) {
-                return await interaction.editReply({
-                    content: validationResult.message
-                });
-            }
+            // ── Validation ──
+            const val = await this._validate(interaction, member, guild);
+            if (!val.ok) return interaction.editReply({ content: val.msg, embeds: [], components: [] });
 
-            // Music player al veya oluştur
+            // ── Show searching embed immediately ──
+            const platform = detectPlatform(query);
+            await interaction.editReply({
+                embeds: [buildSearchingEmbed(platform, query, client.user)],
+                components: [],
+            });
+
+            // ── Ensure player exists ──
             let player = client.players.get(guild.id);
             if (!player) {
                 player = new MusicPlayer(guild, channel, member.voice.channel);
                 client.players.set(guild.id, player);
             }
-
-            // Player kanallarını güncelle
             player.voiceChannel = member.voice.channel;
-            player.textChannel = channel;
+            player.textChannel  = channel;
 
-            // Arama mesajı gönder
-            const searchingMsg = await LanguageManager.getTranslation(guild.id, 'commands.play.searching_desc', { query });
-            await interaction.editReply({ content: searchingMsg });
-
-            // Sadece müzik verilerini al (player'a ekleme yapma)
-            const trackData = await this.getTrackData(query, guild.id);
-
+            // ── Fetch track data ──
+            const trackData = await this._fetchTracks(query, platform, guild.id);
             if (!trackData.success) {
-                return await interaction.editReply({
-                    content: trackData.message
+                return interaction.editReply({
+                    embeds: [MusicEmbedManager.error('Nothing found', trackData.message || 'No results found for that query.')],
+                    components: [],
                 });
             }
 
+            // ── If playlist/album/etc, show info embed first ──
+            if (trackData.isPlaylist && trackData.tracks.length > 0) {
+                const meta = trackData.meta || {};
+                await interaction.editReply({
+                    embeds: [buildPlaylistInfoEmbed(
+                        platform,
+                        meta.type || 'playlist',
+                        meta.name || query,
+                        trackData.tracks.length,
+                        meta.url  || null,
+                        meta.thumbnail || null,
+                        client.user,
+                    )],
+                    components: [],
+                });
+            }
 
-
-            // Embed Manager'a gönder
+            // ── Hand off to embed manager ──
             if (!client.musicEmbedManager) {
                 client.musicEmbedManager = new MusicEmbedManager(client);
             }
 
-            const embedResult = await client.musicEmbedManager.handleMusicData(
-                guild.id,
-                trackData,
-                member,
-                interaction
-            );
-
-            if (!embedResult.success) {
-                return await interaction.editReply({
-                    content: embedResult.message
+            const result = await client.musicEmbedManager.handleMusicData(guild.id, trackData, member, interaction);
+            if (!result?.success) {
+                return interaction.editReply({
+                    embeds: [MusicEmbedManager.error('Playback Error', result?.message || 'Could not start playback.')],
+                    components: [],
                 });
             }
 
-        } catch (error) {
-            const errorMsg = await ErrorHandler.handle(error, interaction.guild?.id, 'play.execute');
-
+        } catch (err) {
+            const msg = await ErrorHandler.handle(err, interaction.guild?.id, 'play.execute');
             try {
+                const errEmbed = MusicEmbedManager.error('Unexpected Error', msg);
                 if (interaction.deferred && !interaction.replied) {
-                    await interaction.editReply({ content: errorMsg });
-                } else if (!interaction.replied && !interaction.deferred) {
-                    await interaction.reply({ content: errorMsg, ephemeral: true });
+                    await interaction.editReply({ embeds: [errEmbed], components: [] });
+                } else if (!interaction.replied) {
+                    await interaction.reply({ embeds: [errEmbed], ephemeral: true });
                 }
-            } catch (responseError) {
-                console.error('Error sending error response:', responseError);
-            }
+            } catch { /* already replied */ }
         }
     },
 
-    async validateRequest(interaction, member, guild) {
-        // Ses kanalı kontrolü
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    async _validate(interaction, member, guild) {
         if (!member.voice.channel) {
-            const errorMsg = await LanguageManager.getTranslation(guild.id, 'commands.play.voice_channel_required');
-            return { success: false, message: errorMsg };
+            const msg = await LanguageManager.getTranslation(guild.id, 'commands.play.voice_channel_required')
+                .catch(() => '❌ You must be in a voice channel!');
+            return { ok: false, msg };
         }
 
-        // İzin kontrolü
-        const permissions = member.voice.channel.permissionsFor(guild.members.me);
-        if (!permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.Speak)) {
-            const errorMsg = await LanguageManager.getTranslation(guild.id, 'commands.play.no_permissions');
-            return { success: false, message: errorMsg };
+        const perms = member.voice.channel.permissionsFor(guild.members.me);
+        if (!perms?.has(PermissionFlagsBits.Connect) || !perms?.has(PermissionFlagsBits.Speak)) {
+            const msg = await LanguageManager.getTranslation(guild.id, 'commands.play.no_permissions')
+                .catch(() => '❌ I need **Connect** and **Speak** permissions in your voice channel!');
+            return { ok: false, msg };
         }
 
-        // Bot farklı kanalda mı kontrolü
-        const botVoiceChannel = guild.members.me.voice.channel;
-        if (botVoiceChannel && botVoiceChannel.id !== member.voice.channel.id) {
-            const errorMsg = await LanguageManager.getTranslation(guild.id, 'commands.play.same_channel_required');
-            return { success: false, message: errorMsg };
+        const botVC = guild.members.me.voice.channel;
+        if (botVC && botVC.id !== member.voice.channel.id) {
+            const msg = await LanguageManager.getTranslation(guild.id, 'commands.play.same_channel_required')
+                .catch(() => `❌ I'm already in <#${botVC.id}>. Join that channel or stop the bot first.`);
+            return { ok: false, msg };
         }
 
-        return { success: true };
+        return { ok: true };
     },
 
-    async getTrackData(query, guildId) {
-        const YouTube = require('../src/YouTube');
-        const Spotify = require('../src/Spotify');
+    async _fetchTracks(query, platform, guildId) {
+        const YouTube   = require('../src/YouTube');
+        const Spotify   = require('../src/Spotify');
         const SoundCloud = require('../src/SoundCloud');
         const DirectLink = require('../src/DirectLink');
 
         try {
-            let tracks = [];
-            let isPlaylist = false;
-
-            // Platform tespiti
-            const platform = this.detectPlatform(query);
+            let tracks = [], isPlaylist = false, meta = {};
 
             switch (platform) {
-                case 'youtube':
-                    // YouTube playlist/video kontrolü
-                    if (YouTube.isPlaylist && YouTube.isPlaylist(query)) {
-                        const playlistData = await YouTube.getPlaylist(query, guildId);
-                        if (playlistData && playlistData.tracks && playlistData.tracks.length > 0) {
-                            tracks = playlistData.tracks;
+
+                // ── YouTube ──────────────────────────────────────────────
+                case 'youtube': {
+                    const isYTPlaylist = typeof YouTube.isPlaylist === 'function' && YouTube.isPlaylist(query);
+                    if (isYTPlaylist) {
+                        const data = await YouTube.getPlaylist(query, guildId);
+                        if (data?.tracks?.length) {
+                            tracks     = data.tracks;
                             isPlaylist = true;
+                            meta       = { type: 'playlist', name: data.title || 'YouTube Playlist', url: query, thumbnail: data.thumbnail };
                         } else {
-                            // Playlist yüklenemezse normal arama yap
                             tracks = await YouTube.search(query, 1, guildId);
                         }
                     } else {
                         tracks = await YouTube.search(query, 1, guildId);
                     }
                     break;
+                }
 
-                case 'spotify':
-                    // Check if it's a Spotify URL (playlist, album, track, or artist)
+                // ── Spotify ──────────────────────────────────────────────
+                case 'spotify': {
                     if (Spotify.isSpotifyURL(query)) {
-                        const spotifyData = await Spotify.getFromURL(query, guildId);
-                        tracks = spotifyData || [];
-                        // Check if it's a playlist/album/artist (multiple tracks)
                         const { type } = Spotify.parseSpotifyURL(query);
-                        isPlaylist = type === 'playlist' || type === 'album' || type === 'artist';
+                        const data     = await Spotify.getFromURL(query, guildId);
+                        tracks         = Array.isArray(data) ? data : (data ? [data] : []);
+                        isPlaylist     = ['playlist', 'album', 'artist'].includes(type);
+                        meta           = {
+                            type,
+                            name:      data?.playlistName || data?.albumName || data?.artistName || query,
+                            url:       query,
+                            thumbnail: data?.thumbnail || tracks[0]?.thumbnail,
+                        };
                     } else {
-                        // Regular search
-                        const spotifyData = await Spotify.search(query, 1, 'track', guildId);
-                        tracks = spotifyData || [];
+                        const data = await Spotify.search(query, 1, 'track', guildId);
+                        tracks     = Array.isArray(data) ? data : (data ? [data] : []);
                     }
                     break;
+                }
 
-                case 'soundcloud':
-                    const soundcloudData = await SoundCloud.search(query, 1, guildId);
-                    tracks = soundcloudData || [];
+                // ── SoundCloud ───────────────────────────────────────────
+                case 'soundcloud': {
+                    if (query.includes('soundcloud.com')) {
+                        // Direct SC URL — could be a set/playlist
+                        const data = await SoundCloud.search(query, 1, guildId);
+                        tracks     = Array.isArray(data) ? data : (data ? [data] : []);
+                        // If multiple tracks returned it's a set
+                        if (tracks.length > 1) {
+                            isPlaylist = true;
+                            meta       = { type: 'playlist', name: 'SoundCloud Set', url: query, thumbnail: tracks[0]?.thumbnail };
+                        }
+                    } else {
+                        const data = await SoundCloud.search(query, 1, guildId);
+                        tracks     = Array.isArray(data) ? data : (data ? [data] : []);
+                    }
                     break;
+                }
 
-                case 'direct':
-                    const directData = await DirectLink.getInfo(query);
-                    tracks = directData || [];
+                // ── Direct Link ──────────────────────────────────────────
+                case 'direct': {
+                    const data = await DirectLink.getInfo(query);
+                    tracks     = Array.isArray(data) ? data : (data ? [data] : []);
                     break;
+                }
 
                 default:
-                    // Varsayılan YouTube arama
                     tracks = await YouTube.search(query, 1, guildId);
             }
 
-            if (!tracks || tracks.length === 0) {
-                const errorMsg = await LanguageManager.getTranslation(guildId, 'musicplayer.no_results_found');
-                return { success: false, message: errorMsg };
+            if (!tracks.length) {
+                const noResult = await LanguageManager.getTranslation(guildId, 'musicplayer.no_results_found')
+                    .catch(() => 'No results found.');
+                return { success: false, message: noResult };
             }
 
-            return {
-                success: true,
-                isPlaylist: isPlaylist,
-                tracks: tracks
-            };
+            return { success: true, tracks, isPlaylist, meta };
 
-        } catch (error) {
-            const errorMsg = await ErrorHandler.handle(error, guildId, 'play.getTrackData');
-            return { success: false, message: errorMsg };
+        } catch (err) {
+            const msg = await ErrorHandler.handle(err, guildId, 'play._fetchTracks');
+            return { success: false, message: msg };
         }
     },
-
-    detectPlatform(query) {
-        if (query.includes('youtube.com') || query.includes('youtu.be')) {
-            return 'youtube';
-        } else if (query.includes('spotify.com')) {
-            return 'spotify';
-        } else if (query.includes('soundcloud.com')) {
-            return 'soundcloud';
-        } else if (query.startsWith('http') && (query.includes('.mp3') || query.includes('.wav') || query.includes('.ogg'))) {
-            return 'direct';
-        } else {
-            return 'soundcloud'; // Default to SoundCloud search
-        }
-    }
 };

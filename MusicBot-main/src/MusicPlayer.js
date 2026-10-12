@@ -792,42 +792,75 @@ class MusicPlayer {
                         streamInfo = await YouTube.getStream(streamUrl, this.guild.id, resumeFromSeconds);
                         break;
 
-                    case 'spotify':
-                        // Enhanced YouTube search for Spotify tracks
-
-                        // Enhanced search query with multiple attempts
+                    case 'spotify': {
+                        // Fallback zinciri: YouTube → SoundCloud → hata
+                        // Birden fazla arama sorgusu dene
                         const searchQueries = [
-                            `"${this.currentTrack.title}" "${this.currentTrack.artist}"`, // Exact match
-                            `${this.currentTrack.title} ${this.currentTrack.artist}`,     // Normal search
-                            `${this.currentTrack.title}`                                  // Title only
+                            `"${this.currentTrack.title}" "${this.currentTrack.artist}"`,
+                            `${this.currentTrack.title} ${this.currentTrack.artist}`,
+                            `${this.currentTrack.title}`,
                         ];
 
-                        let ytTrack = null;
-                        for (const query of searchQueries) {
+                        // ── 1. YouTube'da ara ──────────────────────────────
+                        let resolvedTrack = null;
+                        let resolvedPlatform = null;
+
+                        for (const q of searchQueries) {
                             try {
-                                const results = await YouTube.search(query, 3, this.guild.id); // Get 3 results
+                                const results = await YouTube.search(q, 3, this.guild.id);
                                 if (results && results.length > 0) {
-                                    // Prefer official videos or original versions
-                                    ytTrack = results.find(r =>
+                                    resolvedTrack = results.find(r =>
                                         r.title.toLowerCase().includes('official') ||
                                         r.title.toLowerCase().includes(this.currentTrack.title.toLowerCase())
                                     ) || results[0];
-                                    if (ytTrack) break;
+                                    if (resolvedTrack) { resolvedPlatform = 'youtube'; break; }
                                 }
-                            } catch (e) {
+                            } catch (ytErr) {
+                                console.warn(chalk.yellow(`[Spotify→YT] Query failed: ${q} — ${ytErr.message}`));
                             }
                         }
 
-                        if (ytTrack && ytTrack.url) {
-                            streamUrl = ytTrack.url;
-                            this.currentTrack.youtubeUrl = streamUrl;
-                            this.currentTrack.youtubeTitle = ytTrack.title; // Store YouTube title
-                            streamInfo = await YouTube.getStream(streamUrl, this.guild.id, resumeFromSeconds);
-                        } else {
-                            const errorMsg = await LanguageManager.getTranslation(this.guild.id, 'musicplayer.youtube_not_found_spotify').replace('{title}', this.currentTrack.title);
+                        // ── 2. YouTube bulunamadıysa SoundCloud'da ara ────
+                        if (!resolvedTrack) {
+                            console.warn(chalk.yellow(`[Spotify] YouTube bulunamadı, SoundCloud deneniyor: ${this.currentTrack.title}`));
+                            for (const q of searchQueries) {
+                                try {
+                                    const scResults = await SoundCloud.search(q, 3, this.guild.id);
+                                    if (scResults && scResults.length > 0) {
+                                        resolvedTrack = scResults[0];
+                                        resolvedPlatform = 'soundcloud';
+                                        break;
+                                    }
+                                } catch (scErr) {
+                                    console.warn(chalk.yellow(`[Spotify→SC] Query failed: ${q} — ${scErr.message}`));
+                                }
+                            }
+                        }
+
+                        // ── 3. İkisi de başarısız → hata ─────────────────
+                        if (!resolvedTrack || !resolvedTrack.url) {
+                            const errorMsg = await LanguageManager.getTranslation(
+                                this.guild.id,
+                                'musicplayer.youtube_not_found_spotify'
+                            ).catch(() => `Could not find audio for: ${this.currentTrack.title}`);
                             throw new Error(errorMsg);
                         }
+
+                        // ── Stream al ─────────────────────────────────────
+                        streamUrl = resolvedTrack.url;
+                        this.currentTrack.youtubeUrl    = resolvedPlatform === 'youtube'    ? streamUrl : null;
+                        this.currentTrack.soundcloudUrl = resolvedPlatform === 'soundcloud' ? streamUrl : null;
+                        this.currentTrack.resolvedVia   = resolvedPlatform;
+
+                        console.log(chalk.green(`[Spotify] Resolved via ${resolvedPlatform}: ${resolvedTrack.title}`));
+
+                        if (resolvedPlatform === 'youtube') {
+                            streamInfo = await YouTube.getStream(streamUrl, this.guild.id, resumeFromSeconds);
+                        } else {
+                            streamInfo = await SoundCloud.getStream(streamUrl, this.guild.id, resumeFromSeconds);
+                        }
                         break;
+                    }
 
                     case 'soundcloud':
                         streamInfo = await SoundCloud.getStream(streamUrl, this.guild.id, resumeFromSeconds);
@@ -1833,22 +1866,52 @@ class MusicPlayer {
                 case 'youtube':
                     streamInfo = await YouTube.getStream(streamUrl, this.guild.id);
                     break;
-                case 'spotify':
-                    // Use cached YouTube URL if available
+                case 'spotify': {
+                    // Önce cache'e bak
                     if (track.youtubeUrl) {
                         streamUrl = track.youtubeUrl;
                         streamInfo = await YouTube.getStream(streamUrl, this.guild.id);
+                    } else if (track.soundcloudUrl) {
+                        streamUrl = track.soundcloudUrl;
+                        streamInfo = await SoundCloud.getStream(streamUrl, this.guild.id);
                     } else {
-                        // Quick YouTube search for Spotify
-                        const query = `"${track.title}" "${track.artist}"`;
-                        const results = await YouTube.search(query, 1, this.guild.id);
-                        if (results && results.length > 0) {
-                            streamUrl = results[0].url;
-                            track.youtubeUrl = streamUrl; // Cache for future use
-                            streamInfo = await YouTube.getStream(streamUrl, this.guild.id);
+                        // Fallback: YouTube → SoundCloud
+                        const queries = [
+                            `"${track.title}" "${track.artist}"`,
+                            `${track.title} ${track.artist}`,
+                            `${track.title}`,
+                        ];
+                        let found = false;
+                        // 1. YouTube
+                        for (const q of queries) {
+                            try {
+                                const results = await YouTube.search(q, 1, this.guild.id);
+                                if (results && results.length > 0) {
+                                    streamUrl = results[0].url;
+                                    track.youtubeUrl = streamUrl;
+                                    streamInfo = await YouTube.getStream(streamUrl, this.guild.id);
+                                    found = true;
+                                    break;
+                                }
+                            } catch { /* devam */ }
+                        }
+                        // 2. SoundCloud fallback
+                        if (!found) {
+                            for (const q of queries) {
+                                try {
+                                    const scResults = await SoundCloud.search(q, 1, this.guild.id);
+                                    if (scResults && scResults.length > 0) {
+                                        streamUrl = scResults[0].url;
+                                        track.soundcloudUrl = streamUrl;
+                                        streamInfo = await SoundCloud.getStream(streamUrl, this.guild.id);
+                                        break;
+                                    }
+                                } catch { /* devam */ }
+                            }
                         }
                     }
                     break;
+                }
                 case 'soundcloud':
                     streamInfo = await SoundCloud.getStream(streamUrl, this.guild.id);
                     break;

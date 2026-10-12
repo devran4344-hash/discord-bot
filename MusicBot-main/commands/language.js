@@ -1,186 +1,160 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
-const { JsonDB } = require('node-json-db');
-const fs = require('fs');
-const path = require('path');
-const LanguageManager = require('../src/LanguageManager');
+'use strict';
 
-// Initialize JSON database
+const {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    PermissionFlagsBits,
+} = require('discord.js');
+const { JsonDB }      = require('node-json-db');
+const fs              = require('fs');
+const path            = require('path');
+const config          = require('../config');
+const LanguageManager = require('../src/LanguageManager');
+const MusicEmbedManager = require('../src/MusicEmbedManager');
+
 const db = new JsonDB('database/languages', true, true, '/');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('language')
-        .setDescription('Changes server language')
+        .setDescription('Change the bot language for this server')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction, client) {
         try {
-            // Check if user has MANAGE_GUILD permission
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                const noPermissionTitle = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.errortitle');
-                const noPermissionDesc = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.permission_required');
-                
-                const errorEmbed = new EmbedBuilder()
-                    .setTitle(noPermissionTitle)
-                    .setDescription(noPermissionDesc)
-                    .setColor('#ff0000')
-                    .setTimestamp();
-                
-                return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+                return interaction.reply({
+                    embeds: [MusicEmbedManager.error(
+                        'Permission Denied',
+                        'You need the **Manage Server** permission to change the bot language.'
+                    )],
+                    ephemeral: true,
+                });
             }
 
             const guildId = interaction.guild.id;
 
-            // Get current language
-            let currentLang = 'en'; // Default language
-            try {
-                currentLang = await db.getData(`/servers/${guildId}/language`);
-            } catch (error) {
-                // Language not set, use default
-            }
+            // ── Current language ──
+            let currentLang = 'en';
+            try { currentLang = await db.getData(`/servers/${guildId}/language`); } catch { /* default */ }
 
-            // Get available languages
-            const languagesPath = path.join(__dirname, '..', 'languages');
-            const languageFiles = fs.readdirSync(languagesPath).filter(file => file.endsWith('.json'));
+            // ── Load available languages ──
+            const langDir   = path.join(__dirname, '..', 'languages');
+            const langFiles = fs.readdirSync(langDir).filter(f => f.endsWith('.json'));
+            const languages = langFiles.map(f => {
+                const data = JSON.parse(fs.readFileSync(path.join(langDir, f), 'utf8'));
+                return { code: data.language.code, name: data.language.name, flag: data.language.flag };
+            }).sort((a, b) => a.name.localeCompare(b.name));
 
-            const languages = [];
-            for (const file of languageFiles) {
-                const langData = JSON.parse(fs.readFileSync(path.join(languagesPath, file), 'utf8'));
-                languages.push({
-                    code: langData.language.code,
-                    name: langData.language.name,
-                    flag: langData.language.flag
-                });
-            }
+            const current = languages.find(l => l.code === currentLang);
 
-            // Get current language data
-            const currentLangData = languages.find(lang => lang.code === currentLang);
-            const currentLangFile = JSON.parse(fs.readFileSync(path.join(languagesPath, `${currentLang}.json`), 'utf8'));
-
-            // Create embed
+            // ── Embed ──
             const embed = new EmbedBuilder()
-                .setTitle(currentLangFile.commands.language.title)
-                .setDescription(currentLangFile.commands.language.select)
-                .setColor('#0099ff')
-                .setTimestamp()
+                .setColor(config.bot.colors.default)
+                .setAuthor({
+                    name: '🌍  Language Settings',
+                    iconURL: interaction.client.user.displayAvatarURL(),
+                })
+                .setTitle('Choose a Language')
+                .setDescription(
+                    '> Select your server\'s language by clicking one of the buttons below.\n' +
+                    '> The bot will respond in the chosen language for all interactions.'
+                )
                 .addFields({
-                    name: currentLangFile.commands.language.current,
-                    value: `${currentLangData.flag} ${currentLangData.name}`,
-                    inline: true
-                });
-
-            // Create buttons
-            const buttons = [];
-            const rows = [];
-
-            for (let i = 0; i < languages.length; i++) {
-                const lang = languages[i];
-                const button = new ButtonBuilder()
-                    .setCustomId(`language_${lang.code}`)
-                    .setLabel(lang.name)
-                    .setEmoji(lang.flag)
-                    .setStyle(lang.code === currentLang ? ButtonStyle.Primary : ButtonStyle.Secondary);
-
-                buttons.push(button);
-
-                // Create rows (max 5 buttons per row)
-                if (buttons.length === 5 || i === languages.length - 1) {
-                    const row = new ActionRowBuilder().addComponents(...buttons);
-                    rows.push(row);
-                    buttons.length = 0; // Clear array
-                }
-            }
-
-            await interaction.reply({
-                embeds: [embed],
-                components: rows
-            });
-
-        } catch (error) {
-
-            let errorDes = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.error2');
-            let errorTitle = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.errortitle');
-
-            const errorEmbed = new EmbedBuilder()
-                .setTitle(errorTitle)
-                .setDescription(errorDes)
-                .setColor('#ff0000')
+                    name: '✅  Current Language',
+                    value: current ? `${current.flag}  **${current.name}**` : '`English`',
+                    inline: false,
+                })
+                .setFooter({ text: `${languages.length} languages available` })
                 .setTimestamp();
 
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ embeds: [errorEmbed] });
-            } else {
-                await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+            // ── Buttons (5 per row, max 5 rows = 25 buttons) ──
+            const rows = [];
+            let row    = new ActionRowBuilder();
+            let count  = 0;
+
+            for (const lang of languages) {
+                if (count > 0 && count % 5 === 0) {
+                    rows.push(row);
+                    row = new ActionRowBuilder();
+                    if (rows.length >= 5) break; // Discord limit: 5 rows
+                }
+                row.addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`language_${lang.code}`)
+                        .setLabel(lang.name)
+                        .setEmoji(lang.flag)
+                        .setStyle(lang.code === currentLang ? ButtonStyle.Success : ButtonStyle.Secondary)
+                );
+                count++;
             }
+            if (row.components.length) rows.push(row);
+
+            await interaction.reply({ embeds: [embed], components: rows });
+
+        } catch (err) {
+            console.error('language.execute:', err);
+            try {
+                const errEmbed = MusicEmbedManager.error('Error', 'Could not load the language settings.');
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ embeds: [errEmbed] });
+                } else {
+                    await interaction.reply({ embeds: [errEmbed], ephemeral: true });
+                }
+            } catch { /* already replied */ }
         }
     },
 
-    // Handle button interactions
+    // ── Button handler (called from buttonHandler.js) ────────────────────────
     async handleLanguageButton(interaction) {
         try {
-            // Check if user has MANAGE_GUILD permission
             if (!interaction.member.permissions.has(PermissionFlagsBits.ManageGuild)) {
-                const noPermissionTitle = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.errortitle');
-                const noPermissionDesc = '❌ Bu butonu kullanmak için **Sunucuyu Yönet** yetkisine sahip olmalısın!';
-                
-                const errorEmbed = new EmbedBuilder()
-                    .setTitle(noPermissionTitle)
-                    .setDescription(noPermissionDesc)
-                    .setColor('#ff0000')
-                    .setTimestamp();
-                
-                return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+                return interaction.reply({
+                    embeds: [MusicEmbedManager.error(
+                        'Permission Denied',
+                        'You need the **Manage Server** permission to change the language.'
+                    )],
+                    ephemeral: true,
+                });
             }
 
-            const guildId = interaction.guild.id;
+            const guildId      = interaction.guild.id;
             const selectedLang = interaction.customId.replace('language_', '');
 
-            // Save language preference using LanguageManager (this will update cache automatically)
-            const success = await LanguageManager.setServerLanguage(guildId, selectedLang);
+            const saved = await LanguageManager.setServerLanguage(guildId, selectedLang);
+            if (!saved) throw new Error('Failed to save language preference');
 
-            if (!success) {
-                throw new Error('Failed to save language preference');
-            }
+            const langData = await LanguageManager.getLanguageData(selectedLang);
+            if (!langData) throw new Error('Invalid language code');
 
-            // Get selected language data
-            const selectedLangData = await LanguageManager.getLanguageData(selectedLang);
+            const { flag, name } = langData.language;
 
-            if (!selectedLangData) {
-                throw new Error('Invalid language selected');
-            }
+            const embed = new EmbedBuilder()
+                .setColor(config.bot.colors.success)
+                .setAuthor({
+                    name: '🌍  Language Updated',
+                    iconURL: interaction.client.user.displayAvatarURL(),
+                })
+                .setTitle(`${flag}  ${name}`)
+                .setDescription(`The bot language has been changed to **${name}** for this server.`)
+                .setTimestamp()
+                .setFooter({ text: 'All future responses will use this language.' });
 
-            // Create success embed using new language
-            const successTitle = await LanguageManager.getTranslation(guildId, 'commands.language.changed');
-            const successDescription = await LanguageManager.getTranslation(guildId, 'commands.language.changed_desc', {
-                language: `${selectedLangData.language.flag} ${selectedLangData.language.name}`
-            });
+            await interaction.update({ embeds: [embed], components: [] });
 
-            const successEmbed = new EmbedBuilder()
-                .setTitle(successTitle)
-                .setDescription(successDescription)
-                .setColor('#00ff00')
-                .setTimestamp();
-
-            await interaction.update({
-                embeds: [successEmbed],
-                components: []
-            });
-
-        } catch (error) {
-
-            let errorDes = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.error');
-            let errorTitle = await LanguageManager.getTranslation(interaction.guild.id, 'commands.language.errortitle');
-            const errorEmbed = new EmbedBuilder()
-                .setTitle(errorTitle)
-                .setDescription(errorDes)
-                .setColor('#ff0000')
-                .setTimestamp();
-
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({ embeds: [errorEmbed] });
-            } else {
-                await interaction.update({ embeds: [errorEmbed], components: [] });
-            }
+        } catch (err) {
+            console.error('language.handleLanguageButton:', err);
+            try {
+                const errEmbed = MusicEmbedManager.error('Error', 'Could not save the language preference.');
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ embeds: [errEmbed] });
+                } else {
+                    await interaction.update({ embeds: [errEmbed], components: [] });
+                }
+            } catch { /* already replied */ }
         }
-    }
+    },
 };

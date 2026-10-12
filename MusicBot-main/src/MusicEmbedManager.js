@@ -1,530 +1,520 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const config = require('../config');
+'use strict';
+
+const {
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+} = require('discord.js');
+const config   = require('../config');
 const LanguageManager = require('./LanguageManager');
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** Platform → brand colour */
+function platformColor(platform) {
+    const map = {
+        youtube:    config.bot.colors.youtube,
+        spotify:    config.bot.colors.spotify,
+        soundcloud: config.bot.colors.soundcloud,
+        direct:     config.bot.colors.direct,
+    };
+    return map[(platform || '').toLowerCase()] || config.bot.colors.default;
+}
+
+/** Platform → badge string */
+function platformBadge(platform) {
+    const map = {
+        youtube:    '🔴 YouTube',
+        spotify:    '🟢 Spotify',
+        soundcloud: '🟠 SoundCloud',
+        direct:     '🔗 Direct Link',
+    };
+    return map[(platform || '').toLowerCase()] || '🎵 Unknown';
+}
+
+/** Seconds → human-readable duration */
+function fmtDuration(sec) {
+    const s = Math.floor(Number(sec) || 0);
+    if (s <= 0) return '0:00';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    return `${m}:${String(ss).padStart(2,'0')}`;
+}
+
+/** ms → human-readable */
+function fmtMs(ms) { return fmtDuration(Math.floor((ms || 0) / 1000)); }
+
+/**
+ * Sleek Unicode progress bar
+ * e.g.  ━━━━━━━━●────────────  3:12 / 7:45
+ */
+function buildProgressBar(currentMs, totalSec, barLen = 18) {
+    const totalMs = (totalSec || 0) * 1000;
+    const pct     = totalMs > 0 ? Math.min(currentMs / totalMs, 1) : 0;
+    const filled  = Math.round(pct * barLen);
+    const bar     = '━'.repeat(filled) + '●' + '─'.repeat(barLen - filled);
+    return `\`${bar}\`  \`${fmtMs(currentMs)} / ${fmtDuration(totalSec)}\``;
+}
+
+/** Volume bar  ▰▰▰▰▰▱▱▱▱▱  50% */
+function buildVolumeBar(vol, len = 10) {
+    const filled = Math.round((vol / 100) * len);
+    return `${'▰'.repeat(filled)}${'▱'.repeat(len - filled)}  **${vol}%**`;
+}
+
+// ─── Main class ──────────────────────────────────────────────────────────────
 
 class MusicEmbedManager {
     constructor(client) {
         this.client = client;
-        // Çakışma önleme için işlem kuyruğu
-        this.processingQueue = new Map(); // guildId -> Promise
+        /** Serialises concurrent handleMusicData calls per guild */
+        this.processingQueue = new Map(); // guildId → Promise
     }
 
-    /**
-     * Queue'daki track'leri sırayla preload eder (donmayı önler)
-     */
-    async sequentialPreload(player, tracks) {
-        for (const track of tracks) {
-            // Eğer bu track zaten preload edilmişse veya preload sırasındaysa atla
-            if (player.preloadedStreams.has(track.url) || player.preloadingQueue.includes(track.url)) {
-                continue;
-            }
+    // ── public entry ─────────────────────────────────────────────────────────
 
-            try {
-                await player.preloadTrack(track);
-                // Her preload arasında kısa bekleme (sistem yükünü azaltmak için)
-                await new Promise(resolve => setTimeout(resolve, 100));
-            } catch (err) {
-                console.error(`❌ Preload error for ${track.title}:`, err.message);
-                // Hata olsa bile devam et
-            }
-        }
-    }
-
-    /**
-     * Müzik verilerini işler ve uygun embed'i gönderir/günceller
-     */
     async handleMusicData(guildId, trackData, member, interaction = null) {
-        // Çakışma önleme - aynı guild için aynı anda sadece bir işlem
         if (this.processingQueue.has(guildId)) {
             await this.processingQueue.get(guildId);
         }
-
-        const processingPromise = this._processMusic(guildId, trackData, member, interaction);
-        this.processingQueue.set(guildId, processingPromise);
-
-        try {
-            const result = await processingPromise;
-            return result;
-        } finally {
-            this.processingQueue.delete(guildId);
-        }
+        const p = this._processMusic(guildId, trackData, member, interaction);
+        this.processingQueue.set(guildId, p);
+        try   { return await p; }
+        finally { this.processingQueue.delete(guildId); }
     }
+
+    // ── internal orchestration ────────────────────────────────────────────────
 
     async _processMusic(guildId, trackData, member, interaction) {
         const player = this.client.players.get(guildId);
         if (!player) return { success: false, message: 'No player found' };
 
-        const wasPlayingBefore = player.currentTrack !== null;
-        const isPlaylist = trackData.isPlaylist || false;
-        const tracks = trackData.tracks;
+        const { tracks, isPlaylist = false } = trackData;
+        const wasIdle = !player.currentTrack && player.queue.length === 0;
 
         try {
-            let firstTrackResult = null;
-            const wasIdle = (!player.currentTrack && player.queue.length === 0);
+            let firstResult = null;
 
-            // Tüm track'leri player'a ekle (preload'ı tetikleyecek)
             for (let i = 0; i < tracks.length; i++) {
-                const track = { ...tracks[i] };
-                track.requestedBy = member;
-                track.addedAt = Date.now();
+                const track = { ...tracks[i], requestedBy: member, addedAt: Date.now() };
 
-                // İlk track ve player boşsa
                 if (i === 0 && wasIdle) {
                     player.currentTrack = track;
-
-                    // Ses kanalına bağlan ve çalmaya başla
                     try {
-                        if (!player.connection) {
-                            await player.connect();
-                        }
+                        if (!player.connection) await player.connect();
                         await player.play();
-
-                        // Yeni embed oluştur
-                        firstTrackResult = await this.createNewMusicEmbed(player, track, member, interaction);
-                    } catch (playError) {
-                        console.error('Error in play process:', playError);
-                        // Hata durumunda track'i sıraya ekle
+                        firstResult = await this._sendNowPlayingEmbed(player, track, member, interaction);
+                    } catch (err) {
+                        console.error('▶ play error:', err.message);
                         player.currentTrack = null;
                         player.queue.push(track);
                     }
                 } else {
-                    // Kuyruğa ekle
                     player.queue.push(track);
                 }
             }
 
-            // Preload'ı tetikle - queue'daki track'leri sırayla preload et (donmayı önlemek için)
-            this.sequentialPreload(player, player.queue.slice()).catch(err =>
-                console.error('❌ Sequential preload error:', err.message)
-            );
+            // Background preload — non-blocking
+            this._sequentialPreload(player, player.queue.slice()).catch(() => {});
 
-            // Eğer ilk şarkıyı çalmaya başladıysak ve playlist'te başka şarkılar varsa
-            if (firstTrackResult && tracks.length > 1) {
-                // Playlist'teki kalan şarkıları sıraya eklediğimizi bildiren mesaj göster
-                await this.showPlaylistAdditionMessage(player, tracks, member, interaction, isPlaylist);
-                // Kuyruk bilgisi güncellendi, embed'i de güncelle
+            if (firstResult && tracks.length > 1) {
+                await this._sendQueueAddedMsg(player, tracks.slice(1), member, interaction, isPlaylist);
                 await this.updateNowPlayingEmbed(player);
-                return firstTrackResult;
+                return firstResult;
             }
 
-            // Eğer sadece kuyruğa ekleme yaptıysak (zaten müzik çalıyordu)
-            if (wasPlayingBefore || (!firstTrackResult && tracks.length > 0)) {
-                return await this.handleQueueAddition(player, tracks, member, interaction, isPlaylist);
+            if (!firstResult && tracks.length > 0) {
+                return await this._handleQueueAddition(player, tracks, member, interaction, isPlaylist);
             }
 
-            // Tek şarkı çalmaya başladıysak
-            if (firstTrackResult) {
-                return firstTrackResult;
-            }
-
-            return { success: true, message: 'Track processed successfully' };
-        } catch (error) {
+            return firstResult || { success: true };
+        } catch (err) {
+            console.error('_processMusic error:', err);
             return { success: false, message: 'Error processing music' };
         }
     }
 
-    /**
-     * Playlist ekleme mesajını gösterir (ilk şarkı çalıyorken kalan şarkıların eklendiğini bildirir)
-     */
-    async showPlaylistAdditionMessage(player, tracks, member, interaction, isPlaylist) {
-        // Bilgi mesajı gönder (ilk şarkı hariç kalan şarkıları bildir)
-        const remainingTracks = tracks.slice(1); // İlk şarkı hariç
-        const messageText = await this.createQueueAdditionMessage(remainingTracks, member.guild.id, isPlaylist);
-
-        // Mesajı text channel'a gönder (interaction değil)
-        let infoMessage;
-        try {
-            infoMessage = await player.textChannel.send({ content: messageText });
-
-            // Bilgi mesajını 10 saniye sonra sil
-            setTimeout(async () => {
-                try {
-                    await infoMessage.delete();
-                } catch (error) {
-                    // Mesaj silinmiş olabilir
-                }
-            }, 10000);
-        } catch (error) {
-            console.error('Error sending playlist addition message:', error);
-        }
-    }
-
-    /**
-     * Yeni müzik embed'i oluşturur (çalan müzik yokken)
-     */
-    async createNewMusicEmbed(player, track, member, interaction) {
-        const embed = await this.createNowPlayingEmbed(player, track, member.guild.id);
-        const buttons = await this.createControlButtons(player);
-
-        let message;
-        if (interaction) {
-            if (interaction.deferred || interaction.replied) {
-                message = await interaction.editReply({ content: null, embeds: [embed], components: buttons });
-            } else {
-                message = await interaction.reply({ embeds: [embed], components: buttons });
-            }
-        } else {
-            message = await player.textChannel.send({ embeds: [embed], components: buttons });
-        }
-
-        player.nowPlayingMessage = message;
-        player.requesterId = member.id;
-
-        return { success: true, message: 'Now playing', isNewEmbed: true };
-    }
-
-    /**
-     * Kuyruğa şarkı eklenmesi durumunu yönetir
-     */
-    async handleQueueAddition(player, tracks, member, interaction, isPlaylist) {
-        // Mevcut embed'i güncelle
-        if (player.nowPlayingMessage && player.currentTrack) {
-            await this.updateNowPlayingEmbed(player);
-        }
-
-        // Bilgi mesajı gönder
-        const messageText = await this.createQueueAdditionMessage(tracks, member.guild.id, isPlaylist);
-
-        let infoMessage;
-        if (interaction) {
-            if (interaction.deferred || interaction.replied) {
-                infoMessage = await interaction.editReply({ content: messageText, embeds: [], components: [] });
-            } else {
-                infoMessage = await interaction.reply({ content: messageText, flags: [1 << 6] });
-            }
-        } else {
-            infoMessage = await player.textChannel.send({ content: messageText });
-        }
-
-        // Bilgi mesajını 10 saniye sonra sil
-        setTimeout(async () => {
+    async _sequentialPreload(player, tracks) {
+        for (const t of tracks) {
+            if (player.preloadedStreams?.has(t.url) || player.preloadingQueue?.includes(t.url)) continue;
             try {
-                await infoMessage.delete();
-            } catch (error) {
-                // Mesaj silinmiş olabilir
-            }
-        }, 10000);
-
-        return { success: true, message: 'Added to queue', isNewEmbed: false };
+                await player.preloadTrack?.(t);
+                await new Promise(r => setTimeout(r, 100));
+            } catch { /* continue */ }
+        }
     }
 
+    // ── Now-playing embed ─────────────────────────────────────────────────────
+
     /**
-     * Now Playing embed'ini oluşturur (image_5e34a1.png tasarımına uygun)
+     * Builds the rich "Now Playing" embed.
+     * Used both for fresh sends and live updates.
      */
     async createNowPlayingEmbed(player, track, guildId) {
-        // Verilerin güvenli biçimde çekilmesi ve fallback atanması
-        const authorName = track.artist || track.author || 'Bilinmiyor';
-        const requesterString = track.requestedBy?.toString() || 'Bilinmiyor';
-        const currentVolume = player.volume !== undefined ? player.volume : 50;
-        const currentFilter = player.filter || 'Normal';
-        const autoplayStatus = player.autoplay ? 'Aktif' : 'Devre Dışı';
-        const totalDuration = this.formatDuration(track.duration);
-        
-        // Oynatıcıdan anlık sürenin okunması
-        const rawPosition = player.currentTime || player.position || 0;
-        const currentPos = this.formatDuration(rawPosition);
+        const color    = platformColor(track.platform);
+        const badge    = platformBadge(track.platform);
+        const currentMs = player.currentTime ?? player.position ?? 0;
+        const progress  = buildProgressBar(currentMs, track.duration);
 
-        // İlerleme çubuğu tasarımı
-        const customProgressBar = '🔴 | 🎵 ─────────────────────────';
+        const loopIcon = player.loop === 'track' ? '🔂' : player.loop === 'queue' ? '🔁' : '➡️';
+        const shuffleIcon = player.shuffle ? '🔀 On' : '🔀 Off';
+        const autoplayIcon = player.autoplay ? `🎲 ${player.autoplay}` : '🎲 Off';
+        const volIcon = player.volume >= 70 ? '🔊' : player.volume >= 30 ? '🔉' : '🔈';
+
+        const queueLen = player.queue?.length ?? 0;
+
+        // ── Requester display ──
+        const requester = track.requestedBy
+            ? `<@${track.requestedBy.id}>`
+            : (track.requestedBy?.toString() ?? 'Unknown');
 
         const embed = new EmbedBuilder()
-            .setAuthor({ name: 'Şarkı Çalmaya Başladı...' })
-            .setDescription(`**[${track.title}](${track.url})**`)
-            .setColor(config.bot?.embedColor || '#FF6B6B')
+            .setColor(color)
+            .setAuthor({
+                name: `${badge}  ·  Now Playing`,
+                iconURL: this.client.user.displayAvatarURL(),
+            })
+            .setTitle(track.title || 'Unknown Track')
+            .setURL(track.url || null)
+            .setDescription(progress)
             .addFields(
-                { name: 'Yükleyici:', value: `${authorName}`, inline: true },
-                { name: 'Şarkıyı isteyen:', value: `${requesterString}`, inline: true },
-                { name: 'Ses Seviyesi:', value: `%${currentVolume}`, inline: true },
-                { name: 'Filtre:', value: `${currentFilter}`, inline: true },
-                { name: 'Autoplay:', value: `${autoplayStatus}`, inline: true },
-                { name: 'Toplam Süre:', value: `${totalDuration}`, inline: true },
-                { name: 'Şuanki Süre:', value: `\`[${currentPos} / ${totalDuration}]\``, inline: false },
-                { name: '\u200B', value: customProgressBar, inline: false }
+                {
+                    name: '👤 Artist',
+                    value: `\`${track.artist || track.author || 'Unknown'}\``,
+                    inline: true,
+                },
+                {
+                    name: '📀 Album',
+                    value: `\`${track.album || '—'}\``,
+                    inline: true,
+                },
+                {
+                    name: '🙋 Requested by',
+                    value: requester,
+                    inline: true,
+                },
+                {
+                    name: `${volIcon} Volume`,
+                    value: `\`${player.volume ?? 80}%\``,
+                    inline: true,
+                },
+                {
+                    name: '🔄 Loop',
+                    value: `\`${loopIcon}\``,
+                    inline: true,
+                },
+                {
+                    name: '🔀 Shuffle',
+                    value: `\`${shuffleIcon}\``,
+                    inline: true,
+                },
+                {
+                    name: '📋 Queue',
+                    value: queueLen > 0
+                        ? `\`${queueLen} track${queueLen !== 1 ? 's' : ''} remaining\``
+                        : `\`Empty\``,
+                    inline: true,
+                },
+                {
+                    name: '🎲 Autoplay',
+                    value: `\`${autoplayIcon}\``,
+                    inline: true,
+                },
+                {
+                    name: player.paused ? '⏸ Status' : '▶️ Status',
+                    value: player.paused ? '`Paused`' : '`Playing`',
+                    inline: true,
+                },
             )
             .setTimestamp();
 
-        if (track.thumbnail) {
-            embed.setThumbnail(track.thumbnail);
-        }
+        if (track.thumbnail) embed.setThumbnail(track.thumbnail);
 
-        // Altyapıdaki izin ve kuyruk bilgileri alt bilgi alanında korunur
-        const footerParts = [];
-        const permissionInfo = await LanguageManager.getTranslation(guildId, 'musicmanager.control_permission_info');
-        footerParts.push(permissionInfo);
-        
-        if (player.queue && player.queue.length > 0) {
-            const queueInfo = await LanguageManager.getTranslation(guildId, 'commands.play.more_songs_in_queue', { count: player.queue.length });
-            footerParts.push(queueInfo);
-        }
-        
-        if (footerParts.length > 0) {
-            embed.setFooter({ text: footerParts.join(' • ') });
+        // Next track hint
+        if (queueLen > 0) {
+            const next = player.queue[0];
+            embed.setFooter({
+                text: `Up next: ${next.title}  ·  ${queueLen} in queue`,
+                iconURL: next.thumbnail || undefined,
+            });
+        } else {
+            embed.setFooter({
+                text: 'Queue is empty — add more songs with /play',
+                iconURL: this.client.user.displayAvatarURL(),
+            });
         }
 
         return embed;
     }
 
-    /**
-     * Mevcut müzik embed'ini günceller
-     */
+    async _sendNowPlayingEmbed(player, track, member, interaction) {
+        const embed   = await this.createNowPlayingEmbed(player, track, member.guild.id);
+        const buttons = await this.createControlButtons(player);
+        let msg;
+
+        if (interaction) {
+            if (interaction.deferred || interaction.replied) {
+                msg = await interaction.editReply({ content: null, embeds: [embed], components: buttons });
+            } else {
+                msg = await interaction.reply({ embeds: [embed], components: buttons });
+            }
+        } else {
+            msg = await player.textChannel.send({ embeds: [embed], components: buttons });
+        }
+
+        player.nowPlayingMessage = msg;
+        player.requesterId = member.id;
+        return { success: true, isNewEmbed: true };
+    }
+
     async updateNowPlayingEmbed(player) {
         if (!player.nowPlayingMessage || !player.currentTrack) return;
-
         try {
-            const embed = await this.createNowPlayingEmbed(player, player.currentTrack, player.guild.id);
+            const embed   = await this.createNowPlayingEmbed(player, player.currentTrack, player.guild.id);
             const buttons = await this.createControlButtons(player);
-
-            await player.nowPlayingMessage.edit({
-                embeds: [embed],
-                components: buttons
-            });
-        } catch (error) {
-            console.error('Error updating now playing embed:', error);
+            await player.nowPlayingMessage.edit({ embeds: [embed], components: buttons });
+        } catch (err) {
+            if (err.code !== 10008) console.error('updateNowPlayingEmbed:', err.message);
         }
     }
 
-    /**
-     * Şarkı bittiğinde çağrılır
-     */
-    async handleTrackEnd(player) {
-        if (player.queue.length > 0) {
-            // Sıradaki şarkıya geç
-            const nextTrack = player.queue.shift();
-            player.currentTrack = nextTrack;
+    // ── Queue-addition message ────────────────────────────────────────────────
 
-            await player.play();
+    async _handleQueueAddition(player, tracks, member, interaction, isPlaylist) {
+        if (player.nowPlayingMessage && player.currentTrack) {
             await this.updateNowPlayingEmbed(player);
-        } else {
-            // Tüm şarkılar bitti
-            await this.handlePlaybackEnd(player);
         }
+
+        const embed = this._buildQueueAddedEmbed(tracks, member, isPlaylist);
+        let msg;
+
+        if (interaction) {
+            if (interaction.deferred || interaction.replied) {
+                msg = await interaction.editReply({ content: null, embeds: [embed], components: [] });
+            } else {
+                msg = await interaction.reply({ embeds: [embed], flags: [1 << 6] });
+            }
+        } else {
+            msg = await player.textChannel.send({ embeds: [embed] });
+        }
+
+        // Auto-delete ephemeral-style confirmation
+        if (msg && !interaction?.flags) {
+            setTimeout(() => msg.delete().catch(() => {}), 12_000);
+        }
+
+        return { success: true, isNewEmbed: false };
     }
 
-    /**
-     * Tüm müzikler bittiğinde çağrılır
-     */
+    async _sendQueueAddedMsg(player, tracks, member, interaction, isPlaylist) {
+        const embed = this._buildQueueAddedEmbed(tracks, member, isPlaylist);
+        let msg;
+        try {
+            msg = await player.textChannel.send({ embeds: [embed] });
+            setTimeout(() => msg.delete().catch(() => {}), 12_000);
+        } catch { /* channel gone */ }
+    }
+
+    _buildQueueAddedEmbed(tracks, member, isPlaylist) {
+        const color = platformColor(tracks[0]?.platform);
+        const isMulti = isPlaylist || tracks.length > 1;
+
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setTimestamp();
+
+        if (isMulti) {
+            embed
+                .setAuthor({ name: '📋  Added to Queue' })
+                .setTitle(`${tracks.length} tracks added`)
+                .setDescription(
+                    tracks.slice(0, 5).map((t, i) =>
+                        `\`${i + 1}.\` **[${t.title}](${t.url})**`
+                    ).join('\n') +
+                    (tracks.length > 5 ? `\n*…and ${tracks.length - 5} more*` : '')
+                )
+                .setFooter({ text: `Queued by ${member.displayName || member.user?.username}` });
+        } else {
+            const t = tracks[0];
+            embed
+                .setAuthor({ name: `${platformBadge(t?.platform)}  ·  Added to Queue` })
+                .setTitle(t?.title || 'Unknown Track')
+                .setURL(t?.url || null)
+                .setDescription(
+                    `**Duration:** \`${fmtDuration(t?.duration)}\`\n` +
+                    `**Artist:** \`${t?.artist || t?.author || 'Unknown'}\``
+                )
+                .setFooter({ text: `Queued by ${member.displayName || member.user?.username}` });
+            if (t?.thumbnail) embed.setThumbnail(t.thumbnail);
+        }
+
+        return embed;
+    }
+
+    // ── Playback end ──────────────────────────────────────────────────────────
+
     async handlePlaybackEnd(player) {
-        // Butonları devre dışı bırak
+        // Disable all buttons on the now-playing message
         if (player.nowPlayingMessage) {
             try {
-                const disabledButtons = await this.createControlButtons(player, true);
-                await player.nowPlayingMessage.edit({
-                    components: disabledButtons
-                });
-            } catch (error) {
-                console.error('Error disabling buttons:', error);
-            }
+                const disabledRows = await this.createControlButtons(player, true);
+                await player.nowPlayingMessage.edit({ components: disabledRows });
+            } catch { /* message may be deleted */ }
         }
 
-        let endEmbed = null;
-        const guildId = player.guild?.id;
+        const endEmbed = new EmbedBuilder()
+            .setColor(config.bot.colors.info)
+            .setAuthor({
+                name: '⏹  Playback Ended',
+                iconURL: this.client.user.displayAvatarURL(),
+            })
+            .setDescription(
+                '> The queue is now empty.\n> Add more songs with `/play` to keep the party going! 🎉'
+            )
+            .setTimestamp()
+            .setFooter({
+                text: this.client.user.username,
+                iconURL: this.client.user.displayAvatarURL(),
+            });
 
         try {
-            const title = guildId
-                ? await LanguageManager.getTranslation(guildId, 'musicmanager.playback_ended')
-                : 'Playback Ended';
-            const description = guildId
-                ? await LanguageManager.getTranslation(guildId, 'musicmanager.queue_empty')
-                : 'Queue is now empty.';
+            await player.textChannel?.send({ embeds: [endEmbed] });
+        } catch { /* channel unavailable */ }
 
-            endEmbed = new EmbedBuilder()
-                .setTitle(`🎵 ${title}`)
-                .setDescription(description)
-                .setColor('#FF6B6B')
-                .setTimestamp();
-        } catch (error) {
-            console.error('Error preparing playback end embed:', error);
-        }
-
-        if (!endEmbed) {
-            endEmbed = new EmbedBuilder()
-                .setDescription('🎵 Playback ended')
-                .setColor('#FF6B6B')
-                .setTimestamp();
-        }
-
-        const textChannel = player.textChannel;
-        if (textChannel && typeof textChannel.send === 'function') {
-            try {
-                await textChannel.send({ embeds: [endEmbed] });
-            } catch (error) {
-                // Suppress errors when channel is unavailable or permissions are missing
-            }
-        }
-
-        // Player'ı temizle
-        player.currentTrack = null;
+        player.currentTrack    = null;
         player.nowPlayingMessage = null;
     }
 
-    /**
-     * Kontrol butonlarını oluşturur
-     */
+    // ── Control buttons ───────────────────────────────────────────────────────
+
     async createControlButtons(player, disabled = false) {
-        const guildId = player.guild.id;
-        const sessionId = player.sessionId;
-        const requesterId = player.requesterId;
+        const guildId    = player.guild.id;
+        const sessionId  = player.sessionId;
+        const reqId      = player.requesterId;
+        const id         = (name) => `${name}:${reqId}:${sessionId}`;
+        const paused     = player.paused;
+        const queueEmpty = !player.queue?.length;
+        const hasLyrics  = typeof player.hasLyrics === 'function' ? player.hasLyrics() : false;
 
-        // Button labels
-        const pauseLabel = player.paused ?
-            await LanguageManager.getTranslation(guildId, 'buttons.resume') :
-            await LanguageManager.getTranslation(guildId, 'buttons.pause');
+        // ── Row 1: transport ──────────────────────────────────────────────
+        const row1 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(id('music_pause'))
+                .setEmoji(paused ? '▶️' : '⏸️')
+                .setLabel(paused ? 'Resume' : 'Pause')
+                .setStyle(paused ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(disabled),
 
-        const skipLabel = await LanguageManager.getTranslation(guildId, 'buttons.skip');
-        const stopLabel = await LanguageManager.getTranslation(guildId, 'buttons.stop');
-        const queueLabel = await LanguageManager.getTranslation(guildId, 'buttons.queue');
-        const shuffleLabel = await LanguageManager.getTranslation(guildId, 'buttons.shuffle');
+            new ButtonBuilder()
+                .setCustomId(id('music_skip'))
+                .setEmoji('⏭️')
+                .setLabel('Skip')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(disabled || queueEmpty),
 
-        const pauseButton = new ButtonBuilder()
-            .setCustomId(`music_pause:${requesterId}:${sessionId}`)
-            .setLabel(pauseLabel)
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji(player.paused ? '▶️' : '⏸️')
-            .setDisabled(disabled);
+            new ButtonBuilder()
+                .setCustomId(id('music_stop'))
+                .setEmoji('⏹️')
+                .setLabel('Stop')
+                .setStyle(ButtonStyle.Danger)
+                .setDisabled(disabled),
 
-        const skipButton = new ButtonBuilder()
-            .setCustomId(`music_skip:${requesterId}:${sessionId}`)
-            .setLabel(skipLabel)
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('⏭️')
-            .setDisabled(disabled || player.queue.length === 0); // Sırada müzik yoksa disabled
+            new ButtonBuilder()
+                .setCustomId(id('music_queue'))
+                .setEmoji('📋')
+                .setLabel('Queue')
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(false),
 
-        const stopButton = new ButtonBuilder()
-            .setCustomId(`music_stop:${requesterId}:${sessionId}`)
-            .setLabel(stopLabel)
-            .setStyle(ButtonStyle.Danger)
-            .setEmoji('⏹️')
-            .setDisabled(disabled);
+            new ButtonBuilder()
+                .setCustomId(id('music_shuffle'))
+                .setEmoji('🔀')
+                .setLabel('Shuffle')
+                .setStyle(player.shuffle ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(disabled),
+        );
 
-        const queueButton = new ButtonBuilder()
-            .setCustomId(`music_queue:${requesterId}:${sessionId}`)
-            .setLabel(queueLabel)
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('📋')
-            .setDisabled(false); // Queue butonu her zaman aktif
+        // ── Row 2: extras ─────────────────────────────────────────────────
+        const loopStyle = player.loop === 'track' || player.loop === 'queue'
+            ? ButtonStyle.Success : ButtonStyle.Secondary;
+        const loopEmoji = player.loop === 'track' ? '🔂' : player.loop === 'queue' ? '🔁' : '➡️';
+        const loopLabel = player.loop === 'track' ? 'Loop: Track'
+            : player.loop === 'queue' ? 'Loop: Queue' : 'Loop: Off';
 
-        const shuffleButton = new ButtonBuilder()
-            .setCustomId(`music_shuffle:${requesterId}:${sessionId}`)
-            .setLabel(shuffleLabel)
-            .setStyle(player.shuffle ? ButtonStyle.Success : ButtonStyle.Secondary)
-            .setEmoji('🔀')
-            .setDisabled(disabled);
+        const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(id('music_volume'))
+                .setEmoji('🔊')
+                .setLabel('Volume')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(disabled),
 
-        const volumeLabel = await LanguageManager.getTranslation(guildId, 'buttons.volume');
-        const volumeButton = new ButtonBuilder()
-            .setCustomId(`music_volume:${requesterId}:${sessionId}`)
-            .setLabel(volumeLabel)
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔊')
-            .setDisabled(disabled);
+            new ButtonBuilder()
+                .setCustomId(id('music_loop'))
+                .setEmoji(loopEmoji)
+                .setLabel(loopLabel)
+                .setStyle(loopStyle)
+                .setDisabled(disabled),
 
-        // Loop button - cycles through off -> track -> queue
-        let loopLabel, loopEmoji, loopStyle;
-        if (player.loop === 'track') {
-            loopLabel = await LanguageManager.getTranslation(guildId, 'buttons.loop_track');
-            loopEmoji = '🔂';
-            loopStyle = ButtonStyle.Success;
-        } else if (player.loop === 'queue') {
-            loopLabel = await LanguageManager.getTranslation(guildId, 'buttons.loop_queue');
-            loopEmoji = '🔁';
-            loopStyle = ButtonStyle.Success;
-        } else {
-            loopLabel = await LanguageManager.getTranslation(guildId, 'buttons.loop_off');
-            loopEmoji = '➡️';
-            loopStyle = ButtonStyle.Secondary;
-        }
+            new ButtonBuilder()
+                .setCustomId(id('music_autoplay'))
+                .setEmoji('🎲')
+                .setLabel(player.autoplay ? 'Autoplay: On' : 'Autoplay')
+                .setStyle(player.autoplay ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setDisabled(disabled),
 
-        const loopButton = new ButtonBuilder()
-            .setCustomId(`music_loop:${requesterId}:${sessionId}`)
-            .setLabel(loopLabel)
-            .setStyle(loopStyle)
-            .setEmoji(loopEmoji)
-            .setDisabled(disabled);
+            new ButtonBuilder()
+                .setCustomId(id('music_lyrics'))
+                .setEmoji('🎤')
+                .setLabel('Lyrics')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(disabled || !hasLyrics),
+        );
 
-        // Autoplay button
-        let autoplayLabel, autoplayEmoji, autoplayStyle;
-        if (player.autoplay) {
-            autoplayLabel = await LanguageManager.getTranslation(guildId, 'buttons.autoplay_on');
-            autoplayEmoji = '🎲';
-            autoplayStyle = ButtonStyle.Success;
-        } else {
-            autoplayLabel = await LanguageManager.getTranslation(guildId, 'buttons.autoplay_off');
-            autoplayEmoji = '🎲';
-            autoplayStyle = ButtonStyle.Secondary;
-        }
-
-        const autoplayButton = new ButtonBuilder()
-            .setCustomId(`music_autoplay:${requesterId}:${sessionId}`)
-            .setLabel(autoplayLabel)
-            .setStyle(autoplayStyle)
-            .setEmoji(autoplayEmoji)
-            .setDisabled(disabled);
-
-        // Lyrics button (only show if lyrics available)
-        const lyricsLabel = await LanguageManager.getTranslation(guildId, 'buttons.lyrics') || 'Lyrics';
-        const lyricsButton = new ButtonBuilder()
-            .setCustomId(`music_lyrics:${requesterId}:${sessionId}`)
-            .setLabel(lyricsLabel)
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🎤')
-            .setDisabled(disabled || !player.hasLyrics());
-
-        const row = new ActionRowBuilder()
-            .addComponents(pauseButton, skipButton, stopButton, queueButton, shuffleButton);
-
-        const row2 = new ActionRowBuilder()
-            .addComponents(volumeButton, loopButton, autoplayButton, lyricsButton);
-
-        return [row, row2];
+        return [row1, row2];
     }
 
-    /**
-     * Kuyruk ekleme mesajı oluşturur
-     */
-    async createQueueAdditionMessage(tracks, guildId, isPlaylist) {
-        if (isPlaylist) {
-            return await LanguageManager.getTranslation(guildId, 'musicmanager.playlist_added_to_queue', {
-                count: tracks.length
-            });
-        } else {
-            const track = tracks[0];
-            const title = track?.title || 'Unknown Track';
-            return await LanguageManager.getTranslation(guildId, 'musicmanager.track_added_to_queue', {
-                title: title
-            });
-        }
+    // ── Generic embed builders (used by commands & handlers) ──────────────────
+
+    /** Quick success embed */
+    static success(title, description, thumbnail) {
+        const e = new EmbedBuilder()
+            .setColor(config.bot.colors.success)
+            .setTitle(`✅  ${title}`)
+            .setDescription(description)
+            .setTimestamp();
+        if (thumbnail) e.setThumbnail(thumbnail);
+        return e;
     }
 
-    /**
-     * Duration formatı
-     */
-    formatDuration(seconds) {
-        if (!seconds || seconds === 0) return '0:00';
-
-        const totalSeconds = Math.floor(Number(seconds) || 0);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const remainingSeconds = totalSeconds % 60;
-
-        if (hours > 0) {
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-        } else {
-            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-        }
+    /** Quick error embed */
+    static error(title, description) {
+        return new EmbedBuilder()
+            .setColor(config.bot.colors.error)
+            .setTitle(`❌  ${title}`)
+            .setDescription(description)
+            .setTimestamp();
     }
 
-    /**
-     * Platform emoji'si
-     */
-    getPlatformEmoji(platform) {
-        const emojis = {
-            youtube: '🔴',
-            spotify: '🟢',
-            soundcloud: '🟠',
-            direct: '🔗'
-        };
-        return emojis[platform] || '🎵';
+    /** Quick info embed */
+    static info(title, description, color) {
+        return new EmbedBuilder()
+            .setColor(color || config.bot.colors.info)
+            .setTitle(title)
+            .setDescription(description)
+            .setTimestamp();
     }
+
+    // ── Utility re-exports ────────────────────────────────────────────────────
+    static fmtDuration = fmtDuration;
+    static fmtMs       = fmtMs;
+    static buildProgressBar  = buildProgressBar;
+    static buildVolumeBar    = buildVolumeBar;
+    static platformColor     = platformColor;
+    static platformBadge     = platformBadge;
 }
 
 module.exports = MusicEmbedManager;
