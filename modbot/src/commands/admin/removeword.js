@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const filter = require('../../utils/profanityFilter');
 const config = require('../../config');
@@ -11,6 +11,20 @@ module.exports = {
   usage: '!removeword <kelime>',
   category: 'admin',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('removeword')
+    .setDescription('Küfür filtresinden kelime kaldırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption(o => o.setName('kelime').setDescription('Kaldırılacak kelime').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const word = interaction.options.getString('kelime').toLowerCase().trim();
+    filter.removeCustomWord ? filter.removeCustomWord(word) : null;
+    const idx = config.wordFilter.extraBannedWords?.indexOf(word);
+    if (idx > -1) config.wordFilter.extraBannedWords.splice(idx, 1);
+    await interaction.reply({ content: `✅ \`${word}\` listeden kaldırıldı (mevcut oturum).`, flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild))

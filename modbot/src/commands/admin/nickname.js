@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,6 +10,22 @@ module.exports = {
   example: '!nickname @Kullanıcı YeniAd',
   category: 'admin',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('nickname')
+    .setDescription('Bir üyenin takma adını değiştirir veya kaldırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames)
+    .addUserOption(o => o.setName('üye').setDescription('Üye').setRequired(true))
+    .addStringOption(o => o.setName('nick').setDescription('Yeni takma ad (boş bırakırsan kaldırılır)').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target   = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    const newNick  = interaction.options.getString('nick') || null;
+    const oldNick  = target.nickname;
+    await target.setNickname(newNick, `${interaction.user.tag} tarafından`).catch(() => null);
+    await interaction.reply({ content: `✏️ ${target.user.tag} → \`${newNick || 'Kaldırıldı'}\``, flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageNicknames))

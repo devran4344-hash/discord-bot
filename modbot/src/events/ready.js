@@ -26,6 +26,14 @@ module.exports = {
   async execute(client) {
     loadArrayEvents(client);
 
+    // ── Slash Komutları Register Et ──────────────────────────────
+    try {
+      const { registerSlashCommands } = require('../utils/slashRegister');
+      await registerSlashCommands(client);
+    } catch (err) {
+      console.error(chalk.red('[Slash] Register hatası:'), err.message);
+    }
+
     const memberCount  = client.guilds.cache.reduce((a, g) => a + g.memberCount, 0);
     const guildCount   = client.guilds.cache.size;
     const channelCount = client.channels.cache.size;

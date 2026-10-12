@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,11 +10,23 @@ module.exports = {
   category: 'info',
   cooldown: 5000,
 
+  data: new SlashCommandBuilder()
+    .setName('banner')
+    .setDescription('Kullanıcının profil bannerını gösterir.')
+    .addUserOption(o => o.setName('üye').setDescription('Üye').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const user     = interaction.options.getUser('üye') || interaction.user;
+    const fetched  = await client.users.fetch(user.id, { force: true }).catch(() => null);
+    const bannerUrl = fetched?.bannerURL({ dynamic: true, size: 4096 });
+    if (!bannerUrl) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcının bannerı yok.')], flags: 64 });
+    const embed = new EmbedBuilder().setColor(config.colors.primary).setAuthor({ name: user.tag }).setImage(bannerUrl).setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
+
   async execute(message, args, client) {
     const target = args[0] ? await findMember(message.guild, args[0]) : message.member;
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });
-
-    // Banner için user fetch gerekiyor
     const user = await client.users.fetch(target.id, { force: true }).catch(() => null);
     if (!user) return message.reply({ embeds: [errorEmbed('Kullanıcı bilgisi alınamadı.')] });
 

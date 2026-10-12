@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -9,6 +9,18 @@ module.exports = {
   usage: '!ping',
   category: 'info',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Botun gecikme ve API ping değerlerini gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const sent    = await interaction.reply({ content: '⏳ Ölçülüyor...', fetchReply: true });
+    const latency = sent.createdTimestamp - interaction.createdTimestamp;
+    const api     = Math.round(client.ws.ping);
+    const getStatus = ms => ms < 100 ? '🟢 Mükemmel' : ms < 250 ? '🟡 İyi' : '🔴 Kötü';
+    await interaction.editReply({ content: `🏓 **Bot:** \`${latency}ms\` ${getStatus(latency)} | **API:** \`${api}ms\` ${getStatus(api)}` });
+  },
 
   async execute(message, args, client) {
     const sent    = await message.reply({ content: '⏳ Ölçülüyor...' });

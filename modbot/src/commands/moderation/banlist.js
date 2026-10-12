@@ -1,5 +1,5 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { errorEmbed, isModerator, discordTimestamp } = require('../../utils/helpers');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
+const { errorEmbed, isModerator } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
@@ -10,6 +10,22 @@ module.exports = {
   usage: '!banlist',
   category: 'moderation',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('banlist')
+    .setDescription('Sunucunun ban listesini gösterir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+
+  async executeSlash(interaction, client) {
+    const { PermissionFlagsBits } = require('discord.js');
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör rolü gerekli.')], flags: 64 });
+    await interaction.deferReply();
+    const bans = await interaction.guild.bans.fetch().catch(() => null);
+    if (!bans?.size) return interaction.editReply({ content: '✅ Ban listesi boş.' });
+    const list = [...bans.values()].map((b, i) => `\`${i+1}.\` **${b.user.tag}** \`(${b.user.id})\` — ${b.reason || 'Sebep yok'}`).join('\n');
+    const embed = new EmbedBuilder().setColor(config.colors.ban).setTitle(`🔨 Ban Listesi (${bans.size})`).setDescription(list.slice(0, 4000)).setTimestamp();
+    await interaction.editReply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     if (!isModerator(message.member))

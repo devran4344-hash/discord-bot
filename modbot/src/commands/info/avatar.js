@@ -1,14 +1,27 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed } = require('../../utils/helpers');
 const config = require('../../config');
 
 module.exports = {
   name: 'avatar',
   aliases: ['av', 'pfp', 'profil', 'pp'],
-  description: 'Kullanıcının profil fotoğrafını gösterir. Global ve sunucu avatarı ayrı ayrı gösterilir.',
+  description: 'Kullanıcının profil fotoğrafını gösterir.',
   usage: '!avatar [@üye | ID]',
   category: 'info',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('avatar')
+    .setDescription('Kullanıcının profil fotoğrafını gösterir.')
+    .addUserOption(o => o.setName('üye').setDescription('Üye').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const user   = interaction.options.getUser('üye') || interaction.user;
+    const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    const avatar = member?.displayAvatarURL({ dynamic: true, size: 4096 }) || user.displayAvatarURL({ dynamic: true, size: 4096 });
+    const embed  = new EmbedBuilder().setColor(config.colors.primary).setAuthor({ name: user.tag }).setImage(avatar).setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     const target = args[0] ? await findMember(message.guild, args[0]) : message.member;

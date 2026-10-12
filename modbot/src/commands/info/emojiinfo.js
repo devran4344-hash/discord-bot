@@ -1,8 +1,4 @@
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║         !emojiinfo — Emoji hakkında detaylı bilgi                   ║
-// ╚══════════════════════════════════════════════════════════════════════╝
-
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -14,9 +10,35 @@ module.exports = {
   category: 'info',
   cooldown: 3000,
 
-  async execute(message, args, client) {
-    if (!args[0]) return message.reply({ embeds: [errorEmbed('Bir emoji belirt.\n> **Kullanım:** `!emojiinfo <:emoji:id | isim | ID>`')] });
+  data: new SlashCommandBuilder()
+    .setName('emojiinfo')
+    .setDescription('Bir emoji hakkında bilgi gösterir.')
+    .addStringOption(o => o.setName('emoji').setDescription(':emoji: veya emoji ID\'si').setRequired(true)),
 
+  async executeSlash(interaction, client) {
+    const query = interaction.options.getString('emoji');
+    const match = query.match(/^<(a?):(\w+):(\d+)>$/);
+    let emoji;
+    if (match) emoji = interaction.guild.emojis.cache.get(match[3]);
+    else emoji = interaction.guild.emojis.cache.find(e => e.name === query || e.id === query);
+    if (!emoji) return interaction.reply({ embeds: [errorEmbed('Emoji bulunamadı.')], flags: 64 });
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setTitle(`${emoji.animated ? '🎥' : '🖼️'} ${emoji.name}`)
+      .setThumbnail(emoji.imageURL({ dynamic: true, size: 512 }))
+      .addFields(
+        { name: '🆔 ID',        value: `\`${emoji.id}\``,                               inline: true },
+        { name: '📛 İsim',      value: `\`${emoji.name}\``,                             inline: true },
+        { name: '🎥 Animasyonlu', value: emoji.animated ? 'Evet' : 'Hayır',             inline: true },
+        { name: '📅 Eklenme',   value: discordTimestamp(emoji.createdAt, 'R'),           inline: true },
+        { name: '🔗 URL',       value: `[Aç](${emoji.imageURL({ dynamic: true, size: 512 })})`, inline: true },
+        { name: '💬 Kullanım',  value: `\`<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>\``, inline: false },
+      ).setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
+
+  async execute(message, args, client) {
+    if (!args[0]) return message.reply({ embeds: [errorEmbed('Bir emoji belirt.')] });
     const query = args[0];
     let emoji   = null;
 

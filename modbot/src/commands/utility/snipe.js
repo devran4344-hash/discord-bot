@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -10,6 +10,21 @@ module.exports = {
   usage: '!snipe',
   category: 'utility',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('snipe')
+    .setDescription('Bu kanalda son silinen mesajı gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const snipe = client._snipeCache?.get(interaction.channel.id);
+    if (!snipe) return interaction.reply({ embeds: [errorEmbed('Bu kanalda snipe edilecek mesaj yok.')], flags: 64 });
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.warning)
+      .setAuthor({ name: snipe.author?.tag || 'Bilinmeyen', iconURL: snipe.author?.displayAvatarURL?.({ dynamic: true }) })
+      .setDescription(snipe.content || '*[içerik yok]*')
+      .setFooter({ text: `Silindi` }).setTimestamp(snipe.deletedAt);
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     // messageDelete event modülünden snipe cache al

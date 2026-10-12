@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -7,9 +7,33 @@ module.exports = {
   aliases: ['herkese-rol', 'massrole', 'toplurol'],
   description: 'Tüm üyelere veya tüm botlara rol ekler/kaldırır.',
   usage: '!roleall <ekle|kaldır> <@rol | ID> [--botlar]',
-  example: '!roleall ekle @Üye',
   category: 'admin',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('roleall')
+    .setDescription('Tüm üyelere toplu rol ekler/kaldırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addStringOption(o => o.setName('işlem').setDescription('İşlem türü').setRequired(true)
+      .addChoices({ name: 'Ekle', value: 'ekle' }, { name: 'Kaldır', value: 'kaldir' }))
+    .addRoleOption(o => o.setName('rol').setDescription('Rol').setRequired(true))
+    .addBooleanOption(o => o.setName('botlar').setDescription('Sadece botlara uygula').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const isAdd    = interaction.options.getString('işlem') === 'ekle';
+    const role     = interaction.options.getRole('rol');
+    const onlyBots = interaction.options.getBoolean('botlar') || false;
+    await interaction.deferReply({ flags: 64 });
+    await interaction.guild.members.fetch();
+    let members = interaction.guild.members.cache.filter(m => onlyBots ? m.user.bot : !m.user.bot);
+    let success = 0;
+    for (const [, m] of members) {
+      if (isAdd && !m.roles.cache.has(role.id)) { await m.roles.add(role).catch(() => null); success++; }
+      else if (!isAdd && m.roles.cache.has(role.id)) { await m.roles.remove(role).catch(() => null); success++; }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    await interaction.editReply({ content: `✅ **${success}** üyeye rol ${isAdd ? 'eklendi' : 'kaldırıldı'}: ${role}` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles))

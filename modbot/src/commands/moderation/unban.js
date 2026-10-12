@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, modLogEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,22 @@ module.exports = {
   usage: '!unban <ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('unban')
+    .setDescription('Yasaklı kullanıcının yasağını kaldırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addStringOption(o => o.setName('id').setDescription('Kullanıcı ID\'si').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const userId   = interaction.options.getString('id').replace(/[<@!>]/g, '');
+    const banEntry = await interaction.guild.bans.fetch(userId).catch(() => null);
+    if (!banEntry) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcı yasaklı değil.')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    await interaction.guild.bans.remove(userId, `${interaction.user.tag} | ${reason}`);
+    await interaction.reply({ content: `🔓 **${banEntry.user.tag}** yasağı kaldırıldı.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.BanMembers))

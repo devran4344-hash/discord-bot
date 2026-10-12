@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, canModerate, errorEmbed, modLogEmbed, formatDuration, parseDuration, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,27 @@ module.exports = {
   usage: '!timeout <@kullanıcı | ID> <süre> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('timeout')
+    .setDescription('Kullanıcıya Discord timeout uygular (maks 28 gün).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Timeout uygulanacak kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('süre').setDescription('Süre (10m, 2h, 7d)').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('kullanıcı').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    if (!canModerate(interaction.member, target)) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcıya timeout uygulayamazsın!')], flags: 64 });
+    const dStr  = interaction.options.getString('süre');
+    const dur   = parseDuration(dStr);
+    if (!dur || dur > 28 * 24 * 60 * 60 * 1000) return interaction.reply({ embeds: [errorEmbed('Geçersiz süre. Maks 28 gün.')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    await target.timeout(dur, `${interaction.user.tag} | ${reason}`);
+    await interaction.reply({ content: `⏱️ **${target.user.tag}** ${dStr} timeout aldı. Sebep: ${reason}` });
+    await addModAction(interaction.guild.id, target.id, { type: 'timeout', reason, duration: dur, moderatorId: interaction.user.id, moderatorTag: interaction.user.tag });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers))

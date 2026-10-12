@@ -1,9 +1,8 @@
-const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
-// Cooldown: her kullanıcı max 1 şikayet / 5 dakika
 const reportCooldown = new Map();
 
 module.exports = {
@@ -11,8 +10,35 @@ module.exports = {
   aliases: ['şikayet', 'sikayet', 'ihbar'],
   description: 'Yetkililere hızlı şikayet gönderir.',
   usage: '!report <@üye | ID> <sebep>',
-  example: '!report @Kullanıcı Hakaret ediyor',
   category: 'utility',
+
+  data: new SlashCommandBuilder()
+    .setName('report')
+    .setDescription('Bir üyeyi yetkililere şikayet eder.')
+    .addUserOption(o => o.setName('üye').setDescription('Şikayet edilecek üye').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Şikayet sebebi').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const now  = Date.now();
+    const last = reportCooldown.get(interaction.user.id) || 0;
+    if (now - last < 5 * 60 * 1000) return interaction.reply({ embeds: [errorEmbed('5 dakikada bir şikayet gönderebilirsin.')], flags: 64 });
+    reportCooldown.set(interaction.user.id, now);
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    const sebep  = interaction.options.getString('sebep');
+    const repCh  = config.channels.reportChannel ? interaction.guild.channels.cache.get(config.channels.reportChannel) : null;
+    if (!repCh)  return interaction.reply({ embeds: [errorEmbed('Şikayet kanalı ayarlanmamış.')], flags: 64 });
+    const embed  = new EmbedBuilder()
+      .setColor(config.colors.warning)
+      .setTitle('🚨 Yeni Şikayet')
+      .addFields(
+        { name: '👤 Şikayet Eden', value: `<@${interaction.user.id}> \`${interaction.user.tag}\``, inline: true },
+        { name: '🎯 Şikayet Edilen', value: `<@${target.id}> \`${target.user.tag}\``,              inline: true },
+        { name: '📝 Sebep',         value: sebep,                                                  inline: false },
+      ).setTimestamp();
+    await repCh.send({ embeds: [embed] });
+    await interaction.reply({ content: '✅ Şikayetin yetkililere iletildi.', flags: 64 });
+  },
   cooldown: 10000,
 
   async execute(message, args, client) {

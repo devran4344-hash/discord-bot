@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp, getDangerousPermissions, getAllPermissions } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,9 +10,32 @@ module.exports = {
   category: 'info',
   cooldown: 5000,
 
-  async execute(message, args, client) {
-    if (!args[0]) return message.reply({ embeds: [errorEmbed('Bir rol belirtmelisin.\n> **Kullanım:** `!roleinfo <@rol | ID | isim>`')] });
+  data: new SlashCommandBuilder()
+    .setName('roleinfo')
+    .setDescription('Rol hakkında detaylı bilgi gösterir.')
+    .addRoleOption(o => o.setName('rol').setDescription('Rol').setRequired(true)),
 
+  async executeSlash(interaction, client) {
+    const role = interaction.options.getRole('rol');
+    const dangerous = getDangerousPermissions ? getDangerousPermissions(role.permissions) : [];
+    const embed = new EmbedBuilder()
+      .setColor(role.color || config.colors.primary)
+      .setTitle(`🎭 ${role.name}`)
+      .addFields(
+        { name: '🆔 ID',        value: `\`${role.id}\``,                                         inline: true },
+        { name: '👥 Üye',       value: `\`${role.members.size}\``,                               inline: true },
+        { name: '📅 Oluşturma', value: discordTimestamp(role.createdAt, 'R'),                    inline: true },
+        { name: '🎨 Renk',      value: `\`${role.hexColor}\``,                                   inline: true },
+        { name: '📌 Hoist',     value: role.hoist ? 'Evet' : 'Hayır',                            inline: true },
+        { name: '🔔 Mention',   value: role.mentionable ? 'Evet' : 'Hayır',                      inline: true },
+        ...(dangerous.length ? [{ name: '⚠️ Tehlikeli İzinler', value: dangerous.join(', '), inline: false }] : []),
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
+
+  async execute(message, args, client) {
+    if (!args[0]) return message.reply({ embeds: [errorEmbed('Bir rol belirtmelisin.')] });
     let role = message.mentions.roles.first();
     if (!role) {
       const q = args.join(' ').toLowerCase().replace(/[<@&>]/g, '');

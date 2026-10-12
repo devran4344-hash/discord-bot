@@ -15,7 +15,15 @@ module.exports = {
 
   async execute(message, client) {
     if (!message.guild || message.author.bot || !message.member) return;
-    if (message.webhookId) return; // Webhook mesajlarını tamamen atla (ghost ping tetiklenmesin)
+    if (message.webhookId) return;
+
+    // ── Mesaj sayacı (sıralama komutu için) ─────────────────────
+    try {
+      const siralamaMod = client.commands.get('siralama');
+      if (siralamaMod?.mesajSayacArttir) {
+        siralamaMod.mesajSayacArttir(message.guild.id, message.author.id).catch(() => null);
+      }
+    } catch { /* sessiz */ }
 
     // Ghost ping tracker
     if (message.mentions.users.size > 0) {

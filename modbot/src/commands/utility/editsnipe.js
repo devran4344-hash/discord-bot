@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -10,6 +10,23 @@ module.exports = {
   usage: '!editsnipe',
   category: 'utility',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('editsnipe')
+    .setDescription('Bu kanalda son düzenlenen mesajı gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const snipe = client._editSnipeCache?.get(interaction.channel.id);
+    if (!snipe) return interaction.reply({ embeds: [errorEmbed('Bu kanalda edit snipe yok.')], flags: 64 });
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.info)
+      .setAuthor({ name: snipe.author?.tag || 'Bilinmeyen', iconURL: snipe.author?.displayAvatarURL?.({ dynamic: true }) })
+      .addFields(
+        { name: '📝 Önceki', value: snipe.oldContent?.slice(0, 1024) || '*[yok]*', inline: false },
+        { name: '✏️ Yeni',   value: snipe.newContent?.slice(0, 1024) || '*[yok]*', inline: false },
+      ).setTimestamp(snipe.editedAt);
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     let snipeData = null;

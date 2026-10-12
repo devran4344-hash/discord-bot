@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, sendLog, discordTimestamp, getDangerousPermissions } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,6 +10,35 @@ module.exports = {
   example: '!giverole @Kullanıcı @Moderatör',
   category: 'admin',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('giverole')
+    .setDescription('Kullanıcıya rol verir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addUserOption(o => o.setName('üye').setDescription('Rol verilecek üye').setRequired(true))
+    .addRoleOption(o => o.setName('rol').setDescription('Verilecek rol').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const target   = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    const role     = interaction.options.getRole('rol');
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    if (role.managed) return interaction.reply({ embeds: [errorEmbed('Bu rol bot/entegrasyon tarafından yönetiliyor.')], flags: 64 });
+    if (target.roles.cache.has(role.id)) return interaction.reply({ embeds: [errorEmbed(`${target.user.tag} zaten bu role sahip.`)], flags: 64 });
+    await target.roles.add(role, `${interaction.user.tag} tarafından (slash)`);
+    const dangerous = getDangerousPermissions(role.permissions);
+    const embed = new EmbedBuilder()
+      .setColor(dangerous.length > 0 ? config.colors.warning : config.colors.success)
+      .setDescription(`✅ <@${target.id}> kullanıcısına ${role} rolü verildi.`)
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+    await sendLog(interaction.guild, 'roleLog', new EmbedBuilder()
+      .setColor(config.colors.success).setTitle('✅ Rol Verildi')
+      .addFields(
+        { name: '👤 Üye',     value: `<@${target.id}> \`${target.user.tag}\``,    inline: true },
+        { name: '🎭 Rol',     value: `${role} \`${role.id}\``,                    inline: true },
+        { name: '👮 Yetkili', value: `${interaction.user.tag}`,                   inline: true },
+      ).setTimestamp());
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles))

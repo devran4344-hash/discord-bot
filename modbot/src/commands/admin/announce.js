@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,6 +10,26 @@ module.exports = {
   example: '!announce #duyurular Sunucu bakımda!',
   category: 'admin',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('announce')
+    .setDescription('Belirtilen kanala embed duyuru gönderir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o => o.setName('mesaj').setDescription('Duyuru metni').setRequired(true))
+    .addChannelOption(o => o.setName('kanal').setDescription('Duyuru kanalı (boş = mevcut kanal)').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const text          = interaction.options.getString('mesaj');
+    const targetChannel = interaction.options.getChannel('kanal') || interaction.channel;
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setAuthor({ name: '📢 Duyuru', iconURL: interaction.guild.iconURL({ dynamic: true }) })
+      .setDescription(text)
+      .setFooter({ text: `Duyuran: ${interaction.user.tag} • ${interaction.guild.name}` })
+      .setTimestamp();
+    await targetChannel.send({ content: '@everyone', embeds: [embed] }).catch(() => targetChannel.send({ embeds: [embed] }));
+    await interaction.reply({ content: `✅ Duyuru ${targetChannel} kanalına gönderildi.`, flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages))

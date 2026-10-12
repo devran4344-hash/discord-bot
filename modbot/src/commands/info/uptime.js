@@ -1,14 +1,24 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { formatDuration, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
 module.exports = {
   name: 'uptime',
   aliases: ['süre', 'çalışmasüresi', 'oturumlar'],
-  description: 'Botun çalışma süresini ve geçmiş oturumları gösterir.',
+  description: 'Botun çalışma süresini gösterir.',
   usage: '!uptime',
   category: 'info',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('uptime')
+    .setDescription('Botun çalışma süresini ve geçmiş oturumları gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const uptime = Math.floor(client.uptime / 1000);
+    const h = Math.floor(uptime/3600), m = Math.floor((uptime%3600)/60), s = uptime%60;
+    await interaction.reply({ content: `⏱️ Bot \`${h} saat ${m} dakika ${s} saniyedir\` çalışıyor.` });
+  },
 
   async execute(message, args, client) {
     const uptimeData = client.uptimeData;

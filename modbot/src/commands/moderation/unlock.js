@@ -1,5 +1,5 @@
-                                   const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { errorEmbed, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 
 module.exports = {
@@ -9,6 +9,20 @@ module.exports = {
   usage: '!unlock [#kanal] [sebep]',
   category: 'moderation',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('unlock')
+    .setDescription('Kilitli bir kanalın kilidini açar.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o => o.setName('kanal').setDescription('Açılacak kanal (boş = mevcut)').setRequired(false))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const channel = interaction.options.getChannel('kanal') || interaction.channel;
+    const reason  = interaction.options.getString('sebep') || 'Kilit kaldırıldı';
+    await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: null }, { reason: `${interaction.user.tag} | ${reason}` });
+    await interaction.reply({ content: `🔓 ${channel} kilidi açıldı.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels))

@@ -1,5 +1,5 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { findMember, errorEmbed, discordTimestamp, isModerator } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { findMember, errorEmbed, isModerator } = require('../../utils/helpers');
 const { getWarnings } = require('../../utils/database');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -11,6 +11,37 @@ module.exports = {
   usage: '!warnings [@üye | ID]',
   category: 'moderation',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('warnings')
+    .setDescription('Kullanıcının uyarı listesini gösterir.')
+    .addUserOption(o => o.setName('üye').setDescription('Uyarıları görüntülenecek üye').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const user   = interaction.options.getUser('üye') || interaction.user;
+    const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    if (target.id !== interaction.user.id && !isModerator(interaction.member))
+      return interaction.reply({ embeds: [errorEmbed('Başkasının uyarılarını görmek için moderatör olman gerekiyor.')], flags: 64 });
+    const warnings = await getWarnings(interaction.guild.id, target.id);
+    const maxWarn  = Math.max(...Object.keys(config.warnings.thresholds).map(Number));
+    const count    = warnings.length;
+    const filled   = Math.min(Math.round((count / maxWarn) * 12), 12);
+    const bar      = '█'.repeat(filled) + '░'.repeat(12 - filled);
+    const embed    = new EmbedBuilder()
+      .setColor(count === 0 ? config.colors.success : count < 4 ? config.colors.warning : config.colors.error)
+      .setAuthor({ name: `${target.user.tag} — Uyarı Geçmişi`, iconURL: target.user.displayAvatarURL({ dynamic: true }) })
+      .setDescription(`\`${bar}\` **${count}/${maxWarn}** uyarı`)
+      .setTimestamp();
+    if (count > 0) {
+      warnings.slice(-10).reverse().forEach((w, i) => embed.addFields({
+        name: `Uyarı #${count - i} — \`${w.id}\``,
+        value: `> 📋 ${w.reason}\n> 👮 ${w.moderatorTag}`,
+        inline: false,
+      }));
+    }
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     const target = args[0] ? await findMember(message.guild, args[0]) : message.member;

@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, canModerate, errorEmbed, modLogEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction, removeMute } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,21 @@ module.exports = {
   usage: '!unmute <@kullanıcı | ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('unmute')
+    .setDescription('Kullanıcının susturmasını kaldırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Susturması kaldırılacak kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('kullanıcı').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    if (target.communicationDisabledUntil) await target.timeout(null, `${interaction.user.tag} | ${reason}`);
+    await interaction.reply({ content: `🔊 **${target.user.tag}** susturması kaldırıldı.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers))

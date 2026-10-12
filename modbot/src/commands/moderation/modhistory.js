@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, discordTimestamp, isModerator } = require('../../utils/helpers');
 const { getModHistory } = require('../../utils/database');
 const config = require('../../config');
@@ -14,10 +14,31 @@ const ACTION_EMOJI = {
 module.exports = {
   name: 'modhistory',
   aliases: ['modgeçmişi', 'mh', 'history', 'geçmiş'],
-  description: 'Kullanıcının moderasyon geçmişini sayfalı olarak gösterir.',
+  description: 'Kullanıcının moderasyon geçmişini gösterir.',
   usage: '!modhistory [@üye | ID]',
   category: 'moderation',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('modhistory')
+    .setDescription('Kullanıcının moderasyon geçmişini gösterir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('üye').setDescription('Geçmişi görüntülenecek üye').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const { PermissionFlagsBits } = require('discord.js');
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör gerekli.')], flags: 64 });
+    const user    = interaction.options.getUser('üye') || interaction.user;
+    const history = await getModHistory(interaction.guild.id, user.id);
+    const embed   = new EmbedBuilder()
+      .setColor(config.colors.modlog)
+      .setAuthor({ name: `${user.tag} — Mod Geçmişi`, iconURL: user.displayAvatarURL({ dynamic: true }) })
+      .setDescription(history.length === 0 ? '✅ Temiz geçmiş.' : history.slice(-10).reverse().map((h, i) =>
+        `**${i+1}.** ${ACTION_EMOJI[h.type]?.() || '📋'} \`${h.type}\` — ${h.reason || '—'} (${discordTimestamp(new Date(h.timestamp), 'R')})`
+      ).join('\n'))
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     if (!isModerator(message.member))

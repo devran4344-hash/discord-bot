@@ -1,5 +1,5 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { findMember, errorEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { findMember, errorEmbed, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
@@ -7,16 +7,30 @@ module.exports = {
   name: 'vmove',
   aliases: ['sestasi', 'voicemove', 'seskanalitasi'],
   description: 'Kullanıcıyı başka bir ses kanalına taşır.',
-  usage: '!vmove <@üye | ID> <#ses-kanalı | kanal-ID>',
-  example: '!vmove @Kullanıcı 123456789',
+  usage: '!vmove <@üye | ID> <kanal-ID>',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('vmove')
+    .setDescription('Kullanıcıyı başka bir ses kanalına taşır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers)
+    .addUserOption(o => o.setName('üye').setDescription('Taşınacak üye').setRequired(true))
+    .addChannelOption(o => o.setName('kanal').setDescription('Hedef ses kanalı').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const target  = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    const channel = interaction.options.getChannel('kanal');
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    if (!target.voice.channel) return interaction.reply({ embeds: [errorEmbed('Üye ses kanalında değil.')], flags: 64 });
+    await target.voice.setChannel(channel);
+    await interaction.reply({ content: `🔀 **${target.user.tag}** → ${channel} kanalına taşındı.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.MoveMembers))
       return message.reply({ embeds: [errorEmbed('**Üyeleri Taşı** iznine ihtiyacın var.')] });
-
-    if (!args[0] || !args[1]) return message.reply({ embeds: [errorEmbed('Kullanıcı ve hedef kanal belirtmelisin.\n> **Kullanım:** `!vmove <@üye | ID> <kanal-ID>`')] });
+    if (!args[0] || !args[1]) return message.reply({ embeds: [errorEmbed('Kullanıcı ve hedef kanal belirtmelisin.')] });
 
     const target = await findMember(message.guild, args[0]);
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });

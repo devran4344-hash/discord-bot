@@ -1,22 +1,35 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { findMember, canModerate, errorEmbed, modLogEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { findMember, canModerate, errorEmbed, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
 module.exports = {
   name: 'vdeafen',
   aliases: ['sassağırlaştır', 'voicedeafen', 'sağırlaştır'],
-  description: 'Ses kanalındaki kullanıcıyı sağırlaştırır (duyamaz).',
+  description: 'Ses kanalındaki kullanıcıyı sağırlaştırır.',
   usage: '!vdeafen <@üye | ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
 
+  data: new SlashCommandBuilder()
+    .setName('vdeafen')
+    .setDescription('Ses kanalındaki kullanıcıyı sağırlaştırır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.DeafenMembers)
+    .addUserOption(o => o.setName('üye').setDescription('Sağırlaştırılacak üye').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    if (!target.voice.channel) return interaction.reply({ embeds: [errorEmbed('Üye ses kanalında değil.')], flags: 64 });
+    await target.voice.setDeaf(true, interaction.options.getString('sebep') || 'Sebep yok');
+    await interaction.reply({ content: `🔕 **${target.user.tag}** sağırlaştırıldı.` });
+  },
+
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.DeafenMembers))
       return message.reply({ embeds: [errorEmbed('**Üyeleri Sağırlaştır** iznine ihtiyacın var.')] });
-
     if (!args[0]) return message.reply({ embeds: [errorEmbed('Kullanıcı belirtmelisin.')] });
-
     const target = await findMember(message.guild, args[0]);
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });
     if (!target.voice.channel) return message.reply({ embeds: [errorEmbed('Bu kullanıcı bir ses kanalında değil.')] });

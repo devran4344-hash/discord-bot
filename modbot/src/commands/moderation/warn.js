@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, canModerate, errorEmbed, modLogEmbed, formatDuration, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addWarning, addModAction } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,27 @@ module.exports = {
   usage: '!warn <@kullanıcı | ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('warn')
+    .setDescription('Kullanıcıya uyarı verir. Eşiğe göre otomatik ceza uygulanır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Uyarı verilecek kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Uyarı sebebi').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('kullanıcı').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    if (!canModerate(interaction.member, target)) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcıyı uyaramazsın!')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    // Prefix execute'u yeniden kullan — fake message nesnesi
+    const fakeMsg = {
+      guild: interaction.guild, channel: interaction.channel,
+      member: interaction.member, author: interaction.user,
+      reply: (d) => interaction.replied ? interaction.followUp(d) : interaction.reply(d),
+    };
+    await this.execute(fakeMsg, [`<@${target.id}>`, ...reason.split(' ')], client);
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers))

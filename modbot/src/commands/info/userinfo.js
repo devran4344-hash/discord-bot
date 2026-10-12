@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, discordTimestamp, formatNumber } = require('../../utils/helpers');
 const { getWarnings, getModHistory } = require('../../utils/database');
 const config = require('../../config');
@@ -17,6 +17,33 @@ module.exports = {
   usage: '!userinfo [@üye | ID]',
   category: 'info',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('userinfo')
+    .setDescription('Kullanıcı hakkında detaylı bilgi gösterir.')
+    .addUserOption(o => o.setName('üye').setDescription('Bilgi gösterilecek üye').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const user   = interaction.options.getUser('üye') || interaction.user;
+    const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    const warnings = await getWarnings(interaction.guild.id, user.id);
+    const ageDays  = Math.floor((Date.now() - user.createdTimestamp) / 86400000);
+    const embed    = new EmbedBuilder()
+      .setColor(target.displayColor || config.colors.primary)
+      .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
+      .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
+      .addFields(
+        { name: '🆔 ID',           value: `\`${user.id}\``,                                        inline: true },
+        { name: '📅 Hesap Yaşı',   value: `\`${ageDays}\` gün`,                                    inline: true },
+        { name: '📥 Katılış',      value: target.joinedAt ? discordTimestamp(target.joinedAt, 'R') : '—', inline: true },
+        { name: '⚠️ Uyarı',        value: `\`${warnings.length}\``,                                inline: true },
+        { name: '🎭 En Yüksek Rol', value: `${target.roles.highest}`,                              inline: true },
+        { name: '🤖 Bot',          value: user.bot ? 'Evet' : 'Hayır',                             inline: true },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     const target = args[0] ? await findMember(message.guild, args[0]) : message.member;

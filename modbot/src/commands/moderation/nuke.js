@@ -1,5 +1,5 @@
-const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
+const { errorEmbed, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
@@ -8,9 +8,26 @@ module.exports = {
   aliases: ['kanaltemizle', 'channelwipe', 'nüke'],
   description: 'Kanalı klonlayıp siler — tüm mesajlar anında temizlenir.',
   usage: '!nuke [#kanal] [sebep]',
-  example: '!nuke #spam-kanal Temizlik',
   category: 'moderation',
   cooldown: 30000,
+
+  data: new SlashCommandBuilder()
+    .setName('nuke')
+    .setDescription('Kanalı klonlar ve siler (tüm mesajlar temizlenir).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o => o.setName('kanal').setDescription('Nuke kanalı (boş = mevcut)').setRequired(false))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = interaction.options.getChannel('kanal') || interaction.channel;
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    await interaction.deferReply({ flags: 64 });
+    const clone = await target.clone({ reason: `Nuke: ${interaction.user.tag} | ${reason}` });
+    await clone.setPosition(target.position);
+    await target.delete();
+    const msg = await clone.send({ embeds: [new EmbedBuilder().setColor(0xFF0000).setDescription(`💣 Kanal **nuke** edildi.\n> Yapan: ${interaction.user.tag} | Sebep: ${reason}`).setTimestamp()] });
+    setTimeout(() => msg.delete().catch(() => null), 5000);
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels))

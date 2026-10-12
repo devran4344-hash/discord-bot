@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, findUser, canModerate, errorEmbed, modLogEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,24 @@ module.exports = {
   usage: '!ban <@kullanıcı | ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('ban')
+    .setDescription('Bir kullanıcıyı sunucudan kalıcı olarak yasaklar.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Yasaklanacak kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const targetUser = interaction.options.getUser('kullanıcı');
+    const reason     = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    const target     = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    if (target && !canModerate(interaction.member, target))
+      return interaction.reply({ embeds: [errorEmbed('Bu kullanıcıyı banlayamazsın!')], flags: 64 });
+    await interaction.guild.bans.create(targetUser.id, { reason: `${interaction.user.tag} | ${reason}`, deleteMessageSeconds: 7 * 24 * 3600 });
+    await interaction.reply({ content: `🔨 **${targetUser.tag}** yasaklandı. Sebep: ${reason}` });
+    await addModAction(interaction.guild.id, targetUser.id, { type: 'ban', reason, moderatorId: interaction.user.id, moderatorTag: interaction.user.tag });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.BanMembers))
@@ -48,7 +66,11 @@ module.exports = {
     }
 
     await message.guild.bans.create(targetUser.id, { reason: fullReason, deleteMessageSeconds: 7 * 24 * 3600 })
-      .catch(err => { return message.reply({ embeds: [errorEmbed(`Ban başarısız: \`${err.message}\``)] }); });
+      .catch(err => { message.reply({ embeds: [errorEmbed(`Ban başarısız: \`${err.message}\``)] }); return null; });
+
+    // Ban başarısız olursa devam etme
+    const banCheck = await message.guild.bans.fetch(targetUser.id).catch(() => null);
+    if (!banCheck) return;
 
     const successEmbed = new EmbedBuilder()
       .setColor(config.colors.ban)

@@ -1,5 +1,5 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { findMember, errorEmbed, discordTimestamp, sendLog, isModerator } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { findMember, errorEmbed, isModerator } = require('../../utils/helpers');
 const { removeWarning, getWarnings } = require('../../utils/database');
 const config = require('../../config');
 
@@ -8,16 +8,29 @@ module.exports = {
   aliases: ['uyarısil', 'removewarn', 'warnkaldır'],
   description: 'Kullanıcının belirli bir uyarısını siler.',
   usage: '!delwarn <@üye | ID> <uyarı-ID>',
-  example: '!delwarn @Kullanıcı abc123',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('delwarn')
+    .setDescription('Kullanıcının belirli bir uyarısını siler.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('üye').setDescription('Üye').setRequired(true))
+    .addStringOption(o => o.setName('id').setDescription('Uyarı ID\'si (!warnings ile öğren)').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör gerekli.')], flags: 64 });
+    const user    = interaction.options.getUser('üye');
+    const warnId  = interaction.options.getString('id');
+    const updated = await removeWarning(interaction.guild.id, user.id, warnId);
+    await interaction.reply({ content: `✅ Uyarı silindi. <@${user.id}> kalan uyarı: **${updated.length}**`, flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!isModerator(message.member))
       return message.reply({ embeds: [errorEmbed('Bu komutu kullanmak için moderatör olman gerekiyor.')] });
-
     if (!args[0] || !args[1])
-      return message.reply({ embeds: [errorEmbed('Kullanıcı ve uyarı ID\'si belirtmelisin.\n> **Kullanım:** `!delwarn <@üye | ID> <uyarı-ID>`\n> Uyarı ID\'sini `!warnings` komutuyla öğrenebilirsin.')] });
+      return message.reply({ embeds: [errorEmbed('Kullanıcı ve uyarı ID\'si belirtmelisin.')] });
 
     const target = await findMember(message.guild, args[0]);
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });

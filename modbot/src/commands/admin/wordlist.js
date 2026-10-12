@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, isModerator } = require('../../utils/helpers');
 const filter = require('../../utils/profanityFilter');
 const config = require('../../config');
@@ -11,6 +11,23 @@ module.exports = {
   usage: '!wordlist [kategori]',
   category: 'admin',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('wordlist')
+    .setDescription('Yasaklı kelime listesini gösterir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+  async executeSlash(interaction, client) {
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör gerekli.')], flags: 64 });
+    const custom = config.wordFilter.extraBannedWords || [];
+    const embed  = new EmbedBuilder()
+      .setColor(config.colors.warning)
+      .setTitle('📋 Kelime Filtresi')
+      .setDescription(custom.length ? custom.map(w => `\`${w}\``).join(', ') : 'Özel kelime eklenmemiş.')
+      .addFields({ name: '🤖 AI Filtresi', value: config.wordFilter.ai?.enabled ? '✅ Aktif' : '❌ Devre dışı', inline: true })
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed], flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!isModerator(message.member))

@@ -247,6 +247,67 @@ async function setGuildSetting(guildId, key, value) {
     await _set('guild_settings', `${guildId}_${key}`, value);
 }
 
+// ════════════════════════════════════════
+//  KAYIT SİSTEMİ
+// ════════════════════════════════════════
+
+async function kayitEkle(guildId, userId, data) {
+    const key = `${guildId}_${userId}`;
+    const kayit = {
+        userId,
+        guildId,
+        isim:       data.isim        || null,
+        tur:        data.tur         || 'normal',
+        kaydedenId: data.kaydedenId  || null,
+        kaydedenTag:data.kaydedenTag || null,
+        verilen:    data.verilen     || [],   // verilen rol ID'leri
+        kayitsiz:   false,
+        kayitAt:    Date.now(),
+        kayitSayisi:data.kayitSayisi || 1,
+    };
+    await _set('kayitlar', key, kayit);
+    return kayit;
+}
+
+async function kayitGetir(guildId, userId) {
+    return _get('kayitlar', `${guildId}_${userId}`);
+}
+
+async function kayitGuncelle(guildId, userId, data) {
+    const key = `${guildId}_${userId}`;
+    const mevcut = (await _get('kayitlar', key)) || {};
+    const guncellenmis = { ...mevcut, ...data, updatedAt: Date.now() };
+    await _set('kayitlar', key, guncellenmis);
+    return guncellenmis;
+}
+
+async function kayitSil(guildId, userId) {
+    await _del('kayitlar', `${guildId}_${userId}`);
+}
+
+async function kayitsizEkle(guildId, userId, data) {
+    const key = `${guildId}_${userId}`;
+    const mevcut = (await _get('kayitlar', key)) || { userId, guildId };
+    mevcut.kayitsiz      = true;
+    mevcut.kayitsizAt    = Date.now();
+    mevcut.kayitsizNeden = data.neden || 'Sebep belirtilmedi';
+    mevcut.kayitsizVeren = data.verenId || null;
+    await _set('kayitlar', key, mevcut);
+    return mevcut;
+}
+
+// Sunucu genelinde kayıt sayacı
+async function kayitSayaci(guildId) {
+    const key = `sayac_${guildId}`;
+    const sayi = ((await _get('kayitlar', key)) || 0) + 1;
+    await _set('kayitlar', key, sayi);
+    return sayi;
+}
+
+async function kayitSayacGetir(guildId) {
+    return (await _get('kayitlar', `sayac_${guildId}`)) || 0;
+}
+
 module.exports = {
     // Uyarılar
     addWarning, getWarnings, removeWarning, clearWarnings,
@@ -263,6 +324,9 @@ module.exports = {
     addModAction, getModHistory,
     // Sunucu ayarları
     getGuildSetting, setGuildSetting,
+    // Kayıt sistemi
+    kayitEkle, kayitGetir, kayitGuncelle, kayitSil,
+    kayitsizEkle, kayitSayaci, kayitSayacGetir,
     // Firebase init (test için dışa aktarıldı)
     initFirebase,
 };

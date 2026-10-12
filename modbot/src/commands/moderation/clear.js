@@ -1,15 +1,34 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { findMember, errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
 module.exports = {
   name: 'clear',
   aliases: ['temizle', 'purge', 'sil'],
-  description: 'Belirtilen sayıda mesajı toplu siler. İsteğe bağlı olarak belirli üyeye ait mesajları filtreler.',
+  description: 'Belirtilen sayıda mesajı toplu siler.',
   usage: '!clear <1-500> [@üye] [--bots] [--links]',
-  example: '!clear 50 @Kullanıcı',
   category: 'moderation',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('clear')
+    .setDescription('Belirtilen sayıda mesajı siler.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o => o.setName('miktar').setDescription('Silinecek mesaj sayısı (1-100)').setRequired(true).setMinValue(1).setMaxValue(100))
+    .addUserOption(o => o.setName('üye').setDescription('Sadece bu üyenin mesajları').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const amount  = interaction.options.getInteger('miktar');
+    const user    = interaction.options.getUser('üye');
+    await interaction.deferReply({ flags: 64 });
+    let fetched = await interaction.channel.messages.fetch({ limit: amount + 5 });
+    const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    let toDelete = fetched.filter(m => m.createdTimestamp > twoWeeksAgo);
+    if (user) toDelete = toDelete.filter(m => m.author.id === user.id);
+    if (toDelete.size > amount) toDelete = new Map([...toDelete].slice(0, amount));
+    const deleted = await interaction.channel.bulkDelete(toDelete, true);
+    await interaction.editReply({ content: `🗑️ **${deleted.size}** mesaj silindi.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages))

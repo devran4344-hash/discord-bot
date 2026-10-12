@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { formatDuration, formatNumber, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 const os     = require('os');
@@ -10,6 +10,29 @@ module.exports = {
   usage: '!botinfo',
   category: 'info',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('botinfo')
+    .setDescription('Bot hakkında detaylı bilgi gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const memMB  = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+    const uptime = Math.floor(client.uptime / 1000);
+    const embed  = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setAuthor({ name: client.user.tag, iconURL: client.user.displayAvatarURL({ dynamic: true }) })
+      .setThumbnail(client.user.displayAvatarURL({ dynamic: true, size: 512 }))
+      .addFields(
+        { name: '⏱️ Uptime',     value: `\`${Math.floor(uptime/3600)}s ${Math.floor((uptime%3600)/60)}d\``, inline: true },
+        { name: '💾 RAM',        value: `\`${memMB} MB\``,                  inline: true },
+        { name: '📦 Komut',      value: `\`${client.commands.size}\``,      inline: true },
+        { name: '🏠 Sunucu',     value: `\`${client.guilds.cache.size}\``,  inline: true },
+        { name: '⚙️ Node.js',   value: `\`${process.version}\``,           inline: true },
+        { name: '📚 Discord.js', value: `\`v${require('discord.js').version}\``, inline: true },
+      )
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     const memMB      = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);

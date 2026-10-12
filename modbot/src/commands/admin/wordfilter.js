@@ -1,25 +1,31 @@
-// ╔══════════════════════════════════════════════════════════════════════╗
-// ║         KELİME FİLTRE YÖNETİM KOMUTLARI                            ║
-// ║  !addword, !removeword, !wordlist                                    ║
-// ╚══════════════════════════════════════════════════════════════════════╝
-
-const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, isModerator, discordTimestamp } = require('../../utils/helpers');
 const filter = require('../../utils/profanityFilter');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
 
-// Runtime'da eklenen özel kelimeler (oturum boyunca kalır)
-// Kalıcı olması için database.js'e de kaydedebiliriz ileride
+// Runtime'da eklenen özel kelimeler
 
 module.exports = {
   name: 'addword',
   aliases: ['kelimeekle', 'yasakkeli̇me', 'yasakekle'],
   description: 'Küfür listesine yeni yasaklı kelime ekler.',
   usage: '!addword <kelime>',
-  example: '!addword kötükelime',
   category: 'admin',
   cooldown: 3000,
+
+  data: new (require('discord.js').SlashCommandBuilder)()
+    .setName('addword')
+    .setDescription('Küfür filtresine kelime ekler.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addStringOption(o => o.setName('kelime').setDescription('Eklenecek kelime').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör gerekli.')], flags: 64 });
+    const word = interaction.options.getString('kelime').toLowerCase().trim();
+    filter.addCustomWord(word);
+    await interaction.reply({ content: `✅ \`${word}\` filtreye eklendi.`, flags: 64 });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageGuild))

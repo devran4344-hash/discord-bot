@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -10,6 +10,30 @@ module.exports = {
   example: '!lockdown kapat Raid oluyor',
   category: 'admin',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('lockdown')
+    .setDescription('Sunucudaki tüm metin kanallarını kilitler veya açar.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addStringOption(o => o.setName('mod').setDescription('İşlem').setRequired(true)
+      .addChoices({ name: 'Kapat', value: 'kapat' }, { name: 'Aç', value: 'aç' }))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const mode     = interaction.options.getString('mod');
+    const reason   = interaction.options.getString('sebep') || (mode === 'kapat' ? 'Güvenlik önlemi' : 'Kilit kaldırıldı');
+    const isLocking = mode === 'kapat';
+    await interaction.deferReply({ flags: 64 });
+    const { ChannelType } = require('discord.js');
+    const textChannels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText);
+    let done = 0;
+    for (const [, ch] of textChannels) {
+      await ch.permissionOverwrites.edit(interaction.guild.roles.everyone, { SendMessages: isLocking ? false : null }, { reason: `${interaction.user.tag} | ${reason}` }).catch(() => null);
+      done++;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    await interaction.editReply({ content: `${isLocking ? '🔒' : '🔓'} **${done}** kanal ${isLocking ? 'kilitlendi' : 'açıldı'}. Sebep: ${reason}` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels))

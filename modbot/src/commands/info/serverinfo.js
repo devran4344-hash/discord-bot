@@ -1,10 +1,9 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { discordTimestamp, formatNumber, progressBar } = require('../../utils/helpers');
 const config = require('../../config');
 
 const VERIFICATION = ['Hiçbiri','Düşük','Orta','Yüksek','En Yüksek'];
 const BOOST_TIERS  = { 0:'Seviye 0',1:'Seviye 1',2:'Seviye 2',3:'Seviye 3 ✨' };
-const BOOST_NEEDED = { 0:0,1:2,2:7,3:14 };
 
 module.exports = {
   name: 'serverinfo',
@@ -13,6 +12,30 @@ module.exports = {
   usage: '!serverinfo',
   category: 'info',
   cooldown: 10000,
+
+  data: new SlashCommandBuilder()
+    .setName('serverinfo')
+    .setDescription('Sunucu hakkında detaylı bilgi gösterir.'),
+
+  async executeSlash(interaction, client) {
+    const g = interaction.guild;
+    await g.members.fetch().catch(() => null);
+    const bots   = g.members.cache.filter(m => m.user.bot).size;
+    const humans = g.memberCount - bots;
+    const embed  = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setAuthor({ name: g.name, iconURL: g.iconURL({ dynamic: true }) })
+      .setThumbnail(g.iconURL({ dynamic: true, size: 512 }))
+      .addFields(
+        { name: '👥 Üyeler', value: `Toplam: \`${g.memberCount}\`\nİnsan: \`${humans}\`\nBot: \`${bots}\``, inline: true },
+        { name: '📢 Kanallar', value: `Toplam: \`${g.channels.cache.size}\``, inline: true },
+        { name: '🎭 Roller', value: `\`${g.roles.cache.size - 1}\``, inline: true },
+        { name: '💎 Boost', value: `\`${g.premiumSubscriptionCount || 0}\` boost\nSeviye: ${BOOST_TIERS[g.premiumTier] || 'Seviye 0'}`, inline: true },
+        { name: '🔒 Doğrulama', value: VERIFICATION[g.verificationLevel] || '—', inline: true },
+        { name: '📅 Kuruluş', value: discordTimestamp(g.createdAt, 'R'), inline: true },
+      ).setFooter({ text: `ID: ${g.id}` }).setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  },
 
   async execute(message, args, client) {
     const guild = message.guild;

@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, canModerate, errorEmbed, modLogEmbed, formatDuration, parseDuration, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction, saveMute } = require('../../utils/database');
 const config = require('../../config');
@@ -12,6 +12,28 @@ module.exports = {
   category: 'moderation',
   cooldown: 3000,
 
+  data: new SlashCommandBuilder()
+    .setName('mute')
+    .setDescription('Kullanıcıyı susturur (timeout).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Susturulacak kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('süre').setDescription('Süre (10m, 2h, 1d) — boş = süresiz').setRequired(false))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target   = await interaction.guild.members.fetch(interaction.options.getUser('kullanıcı').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    if (!canModerate(interaction.member, target)) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcıyı susturamazsın!')], flags: 64 });
+    const MAX    = 28 * 24 * 60 * 60 * 1000;
+    const dStr   = interaction.options.getString('süre');
+    const dur    = dStr ? parseDuration(dStr) : MAX;
+    if (!dur) return interaction.reply({ embeds: [errorEmbed('Geçersiz süre. Örn: 10m, 2h, 1d')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    await target.timeout(dur, `${interaction.user.tag} | ${reason}`);
+    await interaction.reply({ content: `🔇 **${target.user.tag}** susturuldu (${dStr || 'süresiz'}). Sebep: ${reason}` });
+    await addModAction(interaction.guild.id, target.id, { type: 'mute', reason, duration: dur, moderatorId: interaction.user.id, moderatorTag: interaction.user.tag });
+  },
+
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers))
       return message.reply({ embeds: [errorEmbed('**Üyeleri Yönet** iznine ihtiyacın var.')] });
@@ -21,7 +43,7 @@ module.exports = {
     const target = await findMember(message.guild, args[0]);
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });
     if (target.id === client.user.id) return message.reply({ embeds: [errorEmbed('Kendimi susturamam!')] });
-    if (!canModerate(message.member, target)) return message.reply({ embeds: [errorEmbed('Bu kullanıcıyı sustuaramazsın!')] });
+    if (!canModerate(message.member, target)) return message.reply({ embeds: [errorEmbed('Bu kullanıcıyı susturamazsın!')] });
 
     const MAX = 28 * 24 * 60 * 60 * 1000;
     let duration = null, reasonStart = 1;

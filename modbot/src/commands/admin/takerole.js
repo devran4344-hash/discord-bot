@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -9,6 +9,22 @@ module.exports = {
   usage: '!takerole <@üye | ID> <@rol | ID | isim>',
   category: 'admin',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('takerole')
+    .setDescription('Kullanıcıdan rol alır.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addUserOption(o => o.setName('üye').setDescription('Üye').setRequired(true))
+    .addRoleOption(o => o.setName('rol').setDescription('Alınacak rol').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    const role   = interaction.options.getRole('rol');
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+    if (!target.roles.cache.has(role.id)) return interaction.reply({ embeds: [errorEmbed('Üyede bu rol zaten yok.')], flags: 64 });
+    await target.roles.remove(role, `${interaction.user.tag} tarafından`);
+    await interaction.reply({ content: `✅ <@${target.id}> kullanıcısından ${role} rolü alındı.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageRoles))

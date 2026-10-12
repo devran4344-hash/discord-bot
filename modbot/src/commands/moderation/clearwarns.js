@@ -1,5 +1,5 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { findMember, errorEmbed, discordTimestamp, sendLog, isModerator } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { findMember, errorEmbed, isModerator } = require('../../utils/helpers');
 const { clearWarnings, getWarnings } = require('../../utils/database');
 const config = require('../../config');
 
@@ -11,12 +11,24 @@ module.exports = {
   category: 'moderation',
   cooldown: 5000,
 
+  data: new SlashCommandBuilder()
+    .setName('clearwarns')
+    .setDescription('Kullanıcının tüm uyarılarını siler.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o => o.setName('üye').setDescription('Uyarıları silinecek üye').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    if (!isModerator(interaction.member)) return interaction.reply({ embeds: [errorEmbed('Moderatör gerekli.')], flags: 64 });
+    const user = interaction.options.getUser('üye');
+    await clearWarnings(interaction.guild.id, user.id);
+    await interaction.reply({ content: `🧹 <@${user.id}> tüm uyarıları silindi.`, flags: 64 });
+  },
+
   async execute(message, args, client) {
     if (!isModerator(message.member))
       return message.reply({ embeds: [errorEmbed('Bu komutu kullanmak için moderatör olman gerekiyor.')] });
-
     if (!args[0])
-      return message.reply({ embeds: [errorEmbed('Bir kullanıcı belirtmelisin.\n> **Kullanım:** `!clearwarns <@üye | ID>`')] });
+      return message.reply({ embeds: [errorEmbed('Bir kullanıcı belirtmelisin.')] });
 
     const target = await findMember(message.guild, args[0]);
     if (!target) return message.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')] });

@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { findMember, canModerate, errorEmbed, modLogEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
 const { addModAction } = require('../../utils/database');
 const config = require('../../config');
@@ -11,6 +11,23 @@ module.exports = {
   usage: '!kick <@kullanıcı | ID> [sebep]',
   category: 'moderation',
   cooldown: 3000,
+
+  data: new SlashCommandBuilder()
+    .setName('kick')
+    .setDescription('Bir kullanıcıyı sunucudan atar.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .addUserOption(o => o.setName('kullanıcı').setDescription('Atılacak kullanıcı').setRequired(true))
+    .addStringOption(o => o.setName('sebep').setDescription('Sebep').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const target = await interaction.guild.members.fetch(interaction.options.getUser('kullanıcı').id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Kullanıcı bulunamadı.')], flags: 64 });
+    if (!canModerate(interaction.member, target)) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcıyı atamazsın!')], flags: 64 });
+    const reason = interaction.options.getString('sebep') || 'Sebep belirtilmedi';
+    await target.kick(`${interaction.user.tag} | ${reason}`);
+    await interaction.reply({ content: `👢 **${target.user.tag}** atıldı. Sebep: ${reason}` });
+    await addModAction(interaction.guild.id, target.id, { type: 'kick', reason, moderatorId: interaction.user.id, moderatorTag: interaction.user.tag });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.KickMembers))

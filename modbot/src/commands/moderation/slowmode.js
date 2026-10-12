@@ -1,15 +1,28 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { errorEmbed, sendLog, discordTimestamp } = require('../../utils/helpers');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { errorEmbed, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 
 module.exports = {
   name: 'slowmode',
   aliases: ['yavasmod', 'sm', 'yavaşmod'],
-  description: 'Kanala yavaş mod uygular. 0 girerek kapatırsın.',
+  description: 'Kanala yavaş mod uygular.',
   usage: '!slowmode <0-21600 saniye> [#kanal]',
-  example: '!slowmode 5',
   category: 'moderation',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('slowmode')
+    .setDescription('Kanala yavaş mod uygular (0 = kapat).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addIntegerOption(o => o.setName('saniye').setDescription('Yavaş mod süresi (0-21600)').setRequired(true).setMinValue(0).setMaxValue(21600))
+    .addChannelOption(o => o.setName('kanal').setDescription('Hedef kanal (boş = mevcut)').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const seconds = interaction.options.getInteger('saniye');
+    const channel = interaction.options.getChannel('kanal') || interaction.channel;
+    await channel.setRateLimitPerUser(seconds);
+    await interaction.reply({ content: seconds === 0 ? `✅ ${channel} yavaş mod kapatıldı.` : `⏱️ ${channel} yavaş mod: **${seconds}** saniye.` });
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels))
@@ -17,7 +30,7 @@ module.exports = {
 
     const seconds = parseInt(args[0]);
     if (isNaN(seconds) || seconds < 0 || seconds > 21600)
-      return message.reply({ embeds: [errorEmbed('**0** ile **21600** saniye (6 saat) arasında bir değer gir.\n> `0` = Kapat, `21600` = Maksimum (6 saat)')] });
+      return message.reply({ embeds: [errorEmbed('**0** ile **21600** saniye arasında bir değer gir.')] });
 
     const channel = message.mentions.channels.first() || message.channel;
 
