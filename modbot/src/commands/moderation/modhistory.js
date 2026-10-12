@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { findMember, errorEmbed, discordTimestamp, isModerator } = require('../../utils/helpers');
 const { getModHistory } = require('../../utils/database');
 const config = require('../../config');

@@ -342,10 +342,10 @@ module.exports = {
 
     kanalId:       '1553156367018106931',   // Yeni üye girince bildirim kanalı
     logKanalId:    '1553156367018106931',   // Kimin kimi kaydettiği buraya loglanır
-    kayitsizRolId: '',   // Yeni girişlerde otomatik verilecek kayıtsız rolü
+    kayitsizRolId: '1553166464905646133',   // Yeni girişlerde otomatik verilecek kayıtsız rolü
 
-    // Kayıt edilince verilecek üye rolleri — birden fazlaysa virgülle ekle
-    memberRoller:  ['1553167045871276224'],   // Örn: ['111222333', '444555666']
+    // Kayıt edilince verilecek üye rolleri
+    memberRoller:  ['1553167045871276224'],   // Üye rolü — kayıt edince verilir, kayıtsız rol alınır
 
     // Bu rollere sahip olanlar !kayit ve /kayit yapabilir
     yetkiliRoller: ['1553117362092380294'],   // Örn: ['777888999']
