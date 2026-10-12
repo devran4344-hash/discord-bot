@@ -11,7 +11,7 @@ const db = new JsonDB('database/languages', true, true, '/');
 class LanguageManager {
     constructor() {
         this.languagesPath = path.join(__dirname, '..', 'languages');
-        this.defaultLanguage = 'en';
+        this.defaultLanguage = 'tr';
         this.loadedLanguages = new Map();
         this.serverLanguageCache = new Map(); // Cache for server languages
 

@@ -5,34 +5,44 @@ const LanguageManager = require('./LanguageManager');
 class YouTube {
     // yt-dlp için ortak parametreleri döndüren yardımcı fonksiyon
     static getYtDlpOptions(extraOptions = {}) {
-        const baseOptions = {
+        // extraOptions'ın extractorArgs'ı ezmemesi için önce base'i kur, sonra merge et
+        const base = {
             noCheckCertificates: true,
             noWarnings: true,
-            retries: 3,
-            fragmentRetries: 3,
-            jsRuntimes: `node:${process.execPath}`,
+            retries: 5,
+            fragmentRetries: 5,
             addHeader: [
                 'referer:youtube.com',
-                'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'user-agent:com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)',
             ],
-            ...extraOptions
         };
 
-        // Auth öncelik sırası: PO Token > Browser Cookie > Cookie Dosyası > iOS client (fallback)
+        // Auth öncelik sırası: PO Token > Cookie dosyası > Sadece iOS/Android client
         if (config.ytdl.poToken) {
-            // PO Token varsa web client'ı ile yüksek kaliteli stream
-            baseOptions.extractorArgs = `youtube:po_token=web+${config.ytdl.poToken};player_client=web`;
+            base.extractorArgs = `youtube:po_token=web+${config.ytdl.poToken};player_client=web,ios,android`;
         } else if (config.ytdl.cookiesFromBrowser) {
-            baseOptions.cookiesFromBrowser = config.ytdl.cookiesFromBrowser;
+            base.cookiesFromBrowser = config.ytdl.cookiesFromBrowser;
+            base.extractorArgs = 'youtube:player_client=web,ios,android';
         } else if (config.ytdl.cookiesFile) {
-            baseOptions.cookies = config.ytdl.cookiesFile;
+            // Mutlak yol oluştur — çalışma dizininden bağımsız çalışsın
+            const path = require('path');
+            const cookiesPath = path.isAbsolute(config.ytdl.cookiesFile)
+                ? config.ytdl.cookiesFile
+                : path.join(__dirname, '..', config.ytdl.cookiesFile);
+            base.cookies = cookiesPath;
+            base.extractorArgs = 'youtube:player_client=web,ios,android';
         } else {
-            // Auth yapılandırılmamışsa iOS client kullan.
-            // Bu, VPS/sunucu IP'lerinde YouTube'un bot tespitini cookie veya token gerektirmeden atlar.
-            baseOptions.extractorArgs = 'youtube:player_client=ios';
+            // Cookie/token yok — iOS+Android client ile bot tespitini atla
+            base.extractorArgs = 'youtube:player_client=ios,android';
         }
 
-        return baseOptions;
+        // extraOptions'ı en sona koy AMA extractorArgs'ı ezme
+        const merged = { ...base, ...extraOptions };
+        if (extraOptions.extractorArgs === undefined) {
+            merged.extractorArgs = base.extractorArgs;
+        }
+
+        return merged;
     }
 
     static async search(query, limit = 1, guildId = null) {
