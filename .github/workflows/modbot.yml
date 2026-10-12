@@ -1,4 +1,5 @@
 name: Mod-Bot 7-24
+
 on:
   schedule:
     - cron: '0 */5 * * *'
@@ -14,12 +15,13 @@ concurrency:
 jobs:
   modbot:
     runs-on: ubuntu-latest
-    timeout-minutes: 280        # 👈 350 → 280 (5h cron'dan kısa)
+    timeout-minutes: 280
+
     steps:
       - uses: actions/checkout@v4
 
       # ═══════════════════════════════════════════════════════════
-      #  1. CACHE (opsiyonel, Firebase varken gerek yok ama dursun)
+      #  1. CACHE
       # ═══════════════════════════════════════════════════════════
       - name: Data cache geri yukle
         uses: actions/cache@v4
@@ -81,6 +83,14 @@ jobs:
           DARBE_ENCRYPTION_KEY=${{ secrets.DARBE_ENCRYPTION_KEY }}
           DARBE_WHITELIST=${{ secrets.DARBE_WHITELIST }}
           FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          KAYIT_KANAL_ID=${{ secrets.KAYIT_KANAL_ID }}
+          KAYIT_LOG_KANAL_ID=${{ secrets.KAYIT_LOG_KANAL_ID }}
+          KAYIT_KAYITSIZ_ROL_ID=${{ secrets.KAYIT_KAYITSIZ_ROL_ID }}
+          KAYIT_MEMBER_ROLLER=${{ secrets.KAYIT_MEMBER_ROLLER }}
+          KAYIT_YETKILI_ROLLER=${{ secrets.KAYIT_YETKILI_ROLLER }}
+          KAYIT_ISIM_FORMATI=${{ secrets.KAYIT_ISIM_FORMATI }}
+          WELCOME_BANNER_URL=${{ secrets.WELCOME_BANNER_URL }}
+          LEAVE_BANNER_URL=${{ secrets.LEAVE_BANNER_URL }}
           EOF
           echo ".env dosyasi olusturuldu:"
           grep -o '^[A-Z_]*=' .env | tr -d '='
