@@ -182,7 +182,7 @@ class LyricsManager {
                 source: 'Genius'
             });
         } catch (error) {
-            console.error('❌ Failed to fetch lyrics from Genius:', error.message);
+            console.warn('⚠️ Genius lyrics alınamadı (sunucu IP kısıtlaması olabilir):', error.message);
             return null;
         }
     }
