@@ -5,7 +5,6 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
-# Aynı anda sadece 1 tane çalışsın — yenisi başlayınca eskisi iptal edilsin
 concurrency:
   group: music-bot-runtime
   cancel-in-progress: true
@@ -23,76 +22,72 @@ jobs:
           node-version: '24'
 
       - name: FFmpeg kur
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
 
       - name: Bagimliliklari kur
         working-directory: ./MusicBot-main
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Opus native kur
         working-directory: ./MusicBot-main
         run: |
-          npm install @discordjs/opus --save
+          npm install @discordjs/opus --save --no-audit --no-fund
           node -e "console.log(require('@discordjs/opus').OpusEncoder ? 'Opus OK' : 'Opus FAIL')"
 
       - name: yt-dlp binary kur
         working-directory: ./MusicBot-main
         run: |
           mkdir -p node_modules/youtube-dl-exec/bin
-          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+          curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
                -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
 
       - name: Cookies dosyasini olustur
         working-directory: ./MusicBot-main
-        run: |
-          echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          echo "Cookies satir sayisi: $(wc -l < cookies.txt)"
+        run: printf '%s\n' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
 
       - name: .env olustur
         working-directory: ./MusicBot-main
+        env:
+          DISCORD_TOKEN:        ${{ secrets.MUSICBOT_TOKEN }}
+          SPOTIFY_CLIENT_ID:    ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: |
-          cat > .env << EOF
-DISCORD_TOKEN=${{ secrets.MUSICBOT_TOKEN }}
-CLIENT_ID=1274117617983946846
-GUILD_ID=1552401095249100870
-SPOTIFY_CLIENT_ID=${{ secrets.SPOTIFY_CLIENT_ID }}
-SPOTIFY_CLIENT_SECRET=${{ secrets.SPOTIFY_CLIENT_SECRET }}
-COOKIES_FILE=cookies.txt
-BOT_STATUS=Muzik Dinliyor
-DEFAULT_VOLUME=80
-MAX_QUEUE_SIZE=200
-MAX_PLAYLIST_SIZE=100
-EMBED_COLOR=#FF6B6B
-COLOR_YOUTUBE=#FF0000
-COLOR_SPOTIFY=#1DB954
-COLOR_SOUNDCLOUD=#FF5500
-COLOR_SUCCESS=#57F287
-COLOR_ERROR=#ED4245
-COLOR_WARNING=#FEE75C
-COLOR_INFO=#5865F2
-COLOR_QUEUE=#EB459E
-TOTAL_SHARDS=auto
-SHARD_RESPAWN=true
-EOF
+          {
+            echo "DISCORD_TOKEN=${DISCORD_TOKEN}"
+            echo "CLIENT_ID=1274117617983946846"
+            echo "GUILD_ID=1552401095249100870"
+            echo "SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}"
+            echo "SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}"
+            echo "COOKIES_FILE=cookies.txt"
+            echo "BOT_STATUS=Muzik Dinliyor"
+            echo "DEFAULT_VOLUME=80"
+            echo "MAX_QUEUE_SIZE=200"
+            echo "MAX_PLAYLIST_SIZE=100"
+            echo "EMBED_COLOR=#FF6B6B"
+            echo "COLOR_YOUTUBE=#FF0000"
+            echo "COLOR_SPOTIFY=#1DB954"
+            echo "COLOR_SOUNDCLOUD=#FF5500"
+            echo "COLOR_SUCCESS=#57F287"
+            echo "COLOR_ERROR=#ED4245"
+            echo "COLOR_WARNING=#FEE75C"
+            echo "COLOR_INFO=#5865F2"
+            echo "COLOR_QUEUE=#EB459E"
+            echo "TOTAL_SHARDS=auto"
+            echo "SHARD_RESPAWN=true"
+          } > .env
 
-      - name: Botu calistir (keepalive)
+      - name: Botu calistir
         working-directory: ./MusicBot-main
         run: |
-          # Botu arka planda başlat
           node index.js &
           BOT_PID=$!
           echo "Bot PID: $BOT_PID"
-
-          # Keepalive: bot çöktüyse yeniden başlat, job süresince ayakta tut
           while true; do
             if ! kill -0 $BOT_PID 2>/dev/null; then
-              echo "$(date): Bot kapandı, yeniden başlatılıyor..."
+              echo "$(date -u): Bot kapandi, yeniden baslatiliyor..."
               node index.js &
               BOT_PID=$!
-              echo "Yeni PID: $BOT_PID"
             fi
             sleep 30
           done
