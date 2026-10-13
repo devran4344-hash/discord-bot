@@ -1,16 +1,16 @@
 'use strict';
 
 const { Events, EmbedBuilder } = require('discord.js');
-const config          = require('../config');
-const LanguageManager = require('../src/LanguageManager');
+const config            = require('../config');
 const MusicEmbedManager = require('../src/MusicEmbedManager');
 
-const { buildVolumeBar, platformColor } = MusicEmbedManager;
+const { platformColor, buildVolumeBar } = MusicEmbedManager;
 
 module.exports = {
     name: Events.InteractionCreate,
 
     async execute(interaction) {
+        // Modal submit + String select menu ikisi de buradan geçer
         if (!interaction.isModalSubmit() && !interaction.isStringSelectMenu()) return;
 
         const client = interaction.client;
@@ -18,7 +18,7 @@ module.exports = {
         const member = interaction.member;
 
         try {
-            // ── Select menus ────────────────────────────────────────────────
+            // ── Select menu'lar ──────────────────────────────────────────────
             if (interaction.isStringSelectMenu()) {
                 if (interaction.customId.startsWith('autoplay_genre:')) {
                     return this._handleAutoplayGenre(interaction, client);
@@ -26,36 +26,33 @@ module.exports = {
                 return;
             }
 
-            // ── Modals ──────────────────────────────────────────────────────
+            // ── Modal submit'ler ─────────────────────────────────────────────
             switch (interaction.customId) {
                 case 'volume_modal':
                     return this._handleVolume(interaction, client);
-
                 default:
-                    return interaction.reply({
-                        content: '❓ Unknown modal.',
-                        ephemeral: true,
-                    });
+                    return interaction.reply({ content: '❓ Bilinmeyen form.', ephemeral: true });
             }
         } catch (err) {
             console.error('modalHandler:', err);
             if (!interaction.replied && !interaction.deferred) {
                 interaction.reply({
-                    embeds: [MusicEmbedManager.error('Error', 'Something went wrong.')],
+                    embeds: [MusicEmbedManager.error('Hata', 'İşlem sırasında bir şeyler ters gitti.')],
                     ephemeral: true,
                 }).catch(() => {});
             }
         }
     },
 
-    // ── Volume modal submit ───────────────────────────────────────────────────
+    // ── Volume modal ─────────────────────────────────────────────────────────
+
     async _handleVolume(interaction, client) {
         const guild  = interaction.guild;
         const member = interaction.member;
 
         if (!member.voice.channel) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Voice Channel Required', 'You need to be in a voice channel.')],
+                embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Ses değiştirmek için ses kanalında olman gerekiyor.')],
                 ephemeral: true,
             });
         }
@@ -63,14 +60,14 @@ module.exports = {
         const player = client.players.get(guild.id);
         if (!player) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Nothing Playing', 'There is no active player.')],
+                embeds: [MusicEmbedManager.error('Şarkı Yok', 'Aktif oynatıcı yok.')],
                 ephemeral: true,
             });
         }
 
         if (player.voiceChannel?.id !== member.voice.channel.id) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Wrong Channel', `I'm playing in <#${player.voiceChannel?.id}>. Join that channel first.`)],
+                embeds: [MusicEmbedManager.error('Yanlış Kanal', `Bot <#${player.voiceChannel?.id}> kanalında. O kanala katıl.`)],
                 ephemeral: true,
             });
         }
@@ -78,32 +75,26 @@ module.exports = {
         const raw    = interaction.fields.getTextInputValue('volume_input');
         const volume = parseInt(raw, 10);
 
-        if (isNaN(volume) || volume < 0 || volume > 100) {
+        if (isNaN(volume) || volume < 0 || volume > 200) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Invalid Volume', 'Please enter a number between **0** and **100**.')],
+                embeds: [MusicEmbedManager.error('Geçersiz Değer', '**0** ile **200** arasında bir sayı gir.')],
                 ephemeral: true,
             });
         }
 
-        const ok = player.setVolume(volume);
-        if (!ok) {
-            return interaction.reply({
-                embeds: [MusicEmbedManager.error('Failed', 'Could not set volume. Is a track playing?')],
-                ephemeral: true,
-            });
-        }
+        player.setVolume(volume);
 
         const color   = platformColor(player.currentTrack?.platform);
-        const volIcon = volume >= 70 ? '🔊' : volume >= 30 ? '🔉' : volume > 0 ? '🔈' : '🔇';
-        const bar     = buildVolumeBar(volume);
+        const volIcon = volume >= 150 ? '📣' : volume >= 70 ? '🔊' : volume >= 30 ? '🔉' : volume > 0 ? '🔈' : '🔇';
+        const bar     = buildVolumeBar(Math.min(volume, 100)); // bar 0-100 gösterir
 
         const embed = new EmbedBuilder()
             .setColor(color)
-            .setAuthor({ name: `${volIcon}  Volume Changed`, iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription(`Volume set to **${volume}%**.`)
+            .setAuthor({ name: `${volIcon}  Ses Değiştirildi`, iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`Ses seviyesi **${volume}%** olarak ayarlandı.`)
             .addFields(
-                { name: `${volIcon} Level`,   value: bar,                         inline: false },
-                { name: '🙋 Changed by', value: `<@${member.id}>`,            inline: true  },
+                { name: `${volIcon} Seviye`, value: bar,                         inline: false },
+                { name: '🙋 Değiştiren',     value: `<@${member.id}>`,           inline: true  },
             )
             .setTimestamp();
 
@@ -113,14 +104,15 @@ module.exports = {
         await client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    // ── Autoplay genre select ─────────────────────────────────────────────────
+    // ── Autoplay genre ────────────────────────────────────────────────────────
+
     async _handleAutoplayGenre(interaction, client) {
         const guild  = interaction.guild;
         const member = interaction.member;
 
         if (!member.voice.channel) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Voice Channel Required', 'You need to be in a voice channel.')],
+                embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Ses kanalında olman gerekiyor.')],
                 flags: [1 << 6],
             });
         }
@@ -128,14 +120,14 @@ module.exports = {
         const player = client.players.get(guild.id);
         if (!player) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Nothing Playing', 'There is no active player.')],
+                embeds: [MusicEmbedManager.error('Şarkı Yok', 'Aktif oynatıcı yok.')],
                 flags: [1 << 6],
             });
         }
 
         if (player.voiceChannel?.id !== member.voice.channel.id) {
             return interaction.reply({
-                embeds: [MusicEmbedManager.error('Wrong Channel', `I'm playing in <#${player.voiceChannel?.id}>.`)],
+                embeds: [MusicEmbedManager.error('Yanlış Kanal', `Bot <#${player.voiceChannel?.id}> kanalında.`)],
                 flags: [1 << 6],
             });
         }
@@ -145,18 +137,18 @@ module.exports = {
 
         const genreLabels = {
             pop: 'Pop', rock: 'Rock', hiphop: 'Hip-Hop',
-            electronic: 'Electronic', jazz: 'Jazz', classical: 'Classical',
+            electronic: 'Elektronik', jazz: 'Caz', classical: 'Klasik',
             metal: 'Metal', country: 'Country', rnb: 'R&B',
             indie: 'Indie', latin: 'Latin', kpop: 'K-Pop',
-            anime: 'Anime', lofi: 'Lo-Fi', random: 'Random',
+            anime: 'Anime', lofi: 'Lo-Fi', random: 'Rastgele',
         };
         const genreName = genreLabels[genre] || genre;
 
         const embed = new EmbedBuilder()
             .setColor(config.bot.colors.success)
-            .setAuthor({ name: '🎲  Autoplay Enabled', iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription(`Autoplay is now **on** with genre **${genreName}**.\nThe bot will automatically queue matching tracks when the queue is empty.`)
-            .addFields({ name: '🎲 Enabled by', value: `<@${member.id}>`, inline: true })
+            .setAuthor({ name: '🎲  Autoplay Açıldı', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`Autoplay **${genreName}** türü ile açıldı.\nKuyruk bitince bu türden şarkılar otomatik kuyruğa eklenecek.`)
+            .addFields({ name: '🎲 Açan', value: `<@${member.id}>`, inline: true })
             .setTimestamp();
 
         await interaction.reply({ embeds: [embed], flags: [1 << 6] });

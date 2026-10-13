@@ -78,6 +78,11 @@ class MusicPlayer {
         // Filters
         this.currentFilter = null;
 
+        // Pro audio settings
+        this.speed  = '1';     // '0.5' | '0.75' | '1' | '1.25' | '1.5' | '2' | '3'
+        this.eq     = 'normal'; // 'normal' | 'electronic' | 'hiphop' | 'jazz' | 'loudness' | 'pop' | 'rock' | 'classical' | 'nightcore' | 'lofi' | '8d'
+        this.bass   = 'off';   // 'off' | 'light' | 'medium' | 'strong' | 'extreme'
+
         // UI Management
         this.nowPlayingMessage = null;
         this.requesterId = null;
@@ -131,6 +136,56 @@ class MusicPlayer {
 
         // Events setup
         this.setupEvents();
+    }
+
+    // ── FFmpeg audio filter builder ───────────────────────────────────────────
+    // Speed, EQ ve Bass ayarlarını birleşik FFmpeg -af argümanı olarak döndürür
+
+    buildAudioFilter() {
+        const filters = [];
+
+        // ── Hız ──────────────────────────────────────────────────────────────
+        const speed = parseFloat(this.speed || '1');
+        if (speed !== 1) {
+            // atempo 0.5–2 arası, dışı için zincirleme gerekiyor
+            if (speed < 0.5) {
+                filters.push('atempo=0.5', `atempo=${(speed / 0.5).toFixed(3)}`);
+            } else if (speed > 2) {
+                filters.push('atempo=2.0', `atempo=${(speed / 2).toFixed(3)}`);
+            } else {
+                filters.push(`atempo=${speed.toFixed(3)}`);
+            }
+        }
+
+        // ── EQ ───────────────────────────────────────────────────────────────
+        const eqMap = {
+            normal:     null,
+            electronic: 'equalizer=f=60:width_type=o:width=2:g=3,equalizer=f=12000:width_type=o:width=2:g=3',
+            hiphop:     'equalizer=f=60:width_type=o:width=2:g=6,equalizer=f=3000:width_type=o:width=2:g=-2',
+            jazz:       'equalizer=f=400:width_type=o:width=2:g=2,equalizer=f=6000:width_type=o:width=2:g=3',
+            loudness:   'equalizer=f=60:width_type=o:width=2:g=4,equalizer=f=8000:width_type=o:width=2:g=4',
+            pop:        'equalizer=f=200:width_type=o:width=2:g=-2,equalizer=f=4000:width_type=o:width=2:g=4',
+            rock:       'equalizer=f=60:width_type=o:width=2:g=4,equalizer=f=2000:width_type=o:width=2:g=2,equalizer=f=8000:width_type=o:width=2:g=2',
+            classical:  'equalizer=f=200:width_type=o:width=2:g=2,equalizer=f=6000:width_type=o:width=2:g=2',
+            nightcore:  'aresample=48000,asetrate=48000*1.25',
+            lofi:       'aresample=48000,asetrate=48000*0.85,equalizer=f=200:width_type=o:width=2:g=3',
+            '8d':       'apulsator=hz=0.09',
+        };
+        const eqFilter = eqMap[this.eq || 'normal'];
+        if (eqFilter) filters.push(eqFilter);
+
+        // ── Bas ───────────────────────────────────────────────────────────────
+        const bassMap = {
+            off:     null,
+            light:   'bass=g=5',
+            medium:  'bass=g=10',
+            strong:  'bass=g=15',
+            extreme: 'bass=g=20',
+        };
+        const bassFilter = bassMap[this.bass || 'off'];
+        if (bassFilter) filters.push(bassFilter);
+
+        return filters.length > 0 ? filters.join(',') : null;
     }
 
     setupEvents() {
@@ -998,14 +1053,18 @@ class MusicPlayer {
                     const seekArgs = resumeFromMs > 0 
                         ? ['-ss', (resumeFromMs / 1000).toFixed(3)] 
                         : [];
+
+                    const audioFilter = this.buildAudioFilter();
+                    const filterArgs  = audioFilter ? ['-af', audioFilter] : [];
                     
                     const ffmpegProcess = new prism.FFmpeg({
                         command: ffmpegPath,
                         args: [
-                            ...seekArgs,  // Add seek if resuming
+                            ...seekArgs,
                             '-analyzeduration', '0',
                             '-loglevel', '0',
                             '-i', 'pipe:0',
+                            ...filterArgs,
                             '-f', 's16le',
                             '-ar', '48000',
                             '-ac', '2'
@@ -1047,6 +1106,7 @@ class MusicPlayer {
                         '-i', downloadedFile,
                         '-analyzeduration', '0',
                         '-loglevel', '0',
+                        ...(() => { const f = this.buildAudioFilter(); return f ? ['-af', f] : []; })(),
                         '-f', 's16le',
                         '-ar', '48000',
                         '-ac', '2'
@@ -1468,12 +1528,38 @@ class MusicPlayer {
     }
 
     setVolume(volume) {
-        this.volume = Math.max(0, Math.min(100, volume));
+        this.volume = Math.max(0, Math.min(200, volume));
         if (this.resource && this.resource.volume) {
             this.resource.volume.setVolume(this.volume / 100);
         }
         this.scheduleStatePersist('volume', 200);
         return this.volume;
+    }
+
+    // ── Ses/Hız/EQ/Bass ayarları — anında uygular ─────────────────────────────
+
+    async applyAudioSettings() {
+        // Mevcut pozisyonu kaydet ve şarkıyı yeniden başlat
+        const currentMs = this.getCurrentTime?.() ?? 0;
+        await this.play(null, currentMs);
+    }
+
+    async setSpeed(speed) {
+        this.speed = String(speed);
+        this.scheduleStatePersist('speed', 200);
+        await this.applyAudioSettings();
+    }
+
+    async setEQ(eq) {
+        this.eq = eq;
+        this.scheduleStatePersist('eq', 200);
+        await this.applyAudioSettings();
+    }
+
+    async setBass(bass) {
+        this.bass = bass;
+        this.scheduleStatePersist('bass', 200);
+        await this.applyAudioSettings();
     }
 
     shuffleQueue() {

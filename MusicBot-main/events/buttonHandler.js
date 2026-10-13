@@ -13,14 +13,12 @@ const {
     StringSelectMenuOptionBuilder,
 } = require('discord.js');
 
-const config          = require('../config');
-const LanguageManager = require('../src/LanguageManager');
-const MusicPlayer     = require('../src/MusicPlayer');
+const config            = require('../config');
 const MusicEmbedManager = require('../src/MusicEmbedManager');
 
-const { platformColor, platformBadge, buildProgressBar, fmtDuration } = MusicEmbedManager;
+const { platformColor, platformBadge, fmtDuration, buildVolumeBar } = MusicEmbedManager;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function _isAuthorized(interaction, requesterId) {
     const m = interaction.member;
@@ -30,181 +28,188 @@ function _isAuthorized(interaction, requesterId) {
     return false;
 }
 
-function _ephemeral(embed) {
-    return { embeds: [embed], flags: [1 << 6] };
+function _eph(embed) { return { embeds: [embed], flags: [1 << 6] }; }
+
+function _fmtDur(sec) {
+    const s = Math.floor(Number(sec) || 0);
+    if (!s) return '?:??';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+    return `${m}:${String(ss).padStart(2,'0')}`;
 }
 
-// ─── Module ──────────────────────────────────────────────────────────────────
+// ─── Module ───────────────────────────────────────────────────────────────────
 
 module.exports = {
     name: Events.InteractionCreate,
 
     async execute(interaction) {
-        if (!interaction.isButton()) return;
+        // Hem buton hem de select menu buradan geçer
+        if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
         const client = interaction.client;
         const guild  = interaction.guild;
         const member = interaction.member;
+        const cid    = interaction.customId;
 
-        // ── Dual search buttons (SC/SP seçimi) ─────────────────────────────
-        if (interaction.customId.startsWith('dual_')) {
-            return this._handleDualSelect(interaction, client);
-        }
+        // ── Dual search ──────────────────────────────────────────────────────
+        if (cid.startsWith('dual_'))       return this._handleDualSelect(interaction, client);
 
-        // ── Search buttons ──────────────────────────────────────────────────
-        if (interaction.customId.startsWith('search_')) {
-            return this._handleSearch(interaction, client);
-        }
+        // ── Normal search ────────────────────────────────────────────────────
+        if (cid.startsWith('search_'))     return this._handleSearch(interaction, client);
 
-        // ── Language buttons ────────────────────────────────────────────────
-        if (interaction.customId.startsWith('language_')) {
+        // ── Language ─────────────────────────────────────────────────────────
+        if (cid.startsWith('language_')) {
             const langCmd = require('../commands/language.js');
             return langCmd.handleLanguageButton(interaction);
         }
 
-        // ── Help refresh ────────────────────────────────────────────────────
-        if (interaction.customId === 'help_refresh') {
-            return this._handleHelpRefresh(interaction, client);
+        // ── Help refresh ──────────────────────────────────────────────────────
+        if (cid === 'help_refresh')        return this._handleHelpRefresh(interaction, client);
+
+        // ── Kontrol Paneli dropdown'ları (cp_volume / cp_speed / cp_eq / cp_bass) ──
+        if (cid.startsWith('cp_volume:') || cid.startsWith('cp_speed:') ||
+            cid.startsWith('cp_eq:')     || cid.startsWith('cp_bass:'))  {
+            return this._handleCPDropdown(interaction, client);
         }
 
-        // ── Music controls — require voice channel ──────────────────────────
+        // ── Kontrol Paneli transport butonları (cp_prev / cp_pause / ...) ────
+        if (cid.startsWith('cp_'))         return this._handleCPButton(interaction, client);
+
+        // ── Müzik kontrol butonları — ses kanalı gerekli ─────────────────────
         if (!member.voice.channel) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Voice Channel Required', 'You need to be in a voice channel to use music controls.')
+            return interaction.reply(_eph(
+                MusicEmbedManager.error('Ses Kanalı Gerekli', 'Müzik kontrollerini kullanmak için bir ses kanalında olman gerekiyor.')
             ));
         }
 
         const player = client.players.get(guild.id);
         if (!player) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Nothing Playing', 'There is no active music player in this server.')
+            return interaction.reply(_eph(
+                MusicEmbedManager.error('Çalan Müzik Yok', 'Bu sunucuda aktif bir müzik oynatıcısı yok.')
             ));
         }
 
         if (player.voiceChannel?.id !== member.voice.channel.id) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Wrong Channel', `I'm playing in <#${player.voiceChannel?.id}>. Join that channel first.`)
+            return interaction.reply(_eph(
+                MusicEmbedManager.error('Yanlış Kanal', `Bot şu an <#${player.voiceChannel?.id}> kanalında. O kanala katıl.`)
             ));
         }
 
-        // ── Session validation ──────────────────────────────────────────────
-        const [btnType, requesterId, sessionId] = interaction.customId.split(':');
+        // Session doğrulama
+        const parts = cid.split(':');
+        const [btnType, requesterId, sessionId] = parts;
         if (sessionId && player.sessionId && sessionId !== player.sessionId) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Session Expired', 'These controls belong to a previous session. Use `/nowplaying` for fresh controls.')
+            return interaction.reply(_eph(
+                MusicEmbedManager.error('Süresi Doldu', 'Bu kontroller eski bir oturuma ait. `/nowplaying` ile yeni kontroller aç.')
             ));
         }
 
         try {
             switch (btnType) {
                 case 'music_pause':    return this._handlePause(interaction, player, requesterId);
+                case 'music_prev':     return this._handlePrev(interaction, player, requesterId);
                 case 'music_skip':     return this._handleSkip(interaction, player, requesterId);
                 case 'music_stop':     return this._handleStop(interaction, player, client, requesterId);
                 case 'music_queue':    return this._handleQueue(interaction, player);
                 case 'music_shuffle':  return this._handleShuffle(interaction, player, requesterId);
-                case 'music_volume':   return this._handleVolumeModal(interaction, player, requesterId);
                 case 'music_loop':     return this._handleLoop(interaction, player, requesterId);
                 case 'music_autoplay': return this._handleAutoplay(interaction, player, requesterId);
+                case 'music_like':     return this._handleLike(interaction, player);
+                case 'music_panel':    return this._handlePanel(interaction, player, client);
                 case 'music_lyrics':   return this._handleLyrics(interaction, player);
                 default:
-                    return interaction.reply(_ephemeral(
-                        MusicEmbedManager.error('Unknown Action', 'This button is not recognised.')
-                    ));
+                    return interaction.reply(_eph(MusicEmbedManager.error('Bilinmeyen Buton', 'Bu buton tanınmıyor.')));
             }
         } catch (err) {
             console.error('buttonHandler:', err);
             if (!interaction.replied && !interaction.deferred) {
-                interaction.reply(_ephemeral(
-                    MusicEmbedManager.error('Error', 'Something went wrong while processing that action.')
-                )).catch(() => {});
+                interaction.reply(_eph(MusicEmbedManager.error('Hata', 'İşlem sırasında bir hata oluştu.'))).catch(() => {});
             }
         }
     },
 
     // ── Pause / Resume ────────────────────────────────────────────────────────
+
     async _handlePause(interaction, player, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can do that.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
         if (!player.currentTrack) {
-            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'There is no track to pause/resume.')));
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Duraklatılacak şarkı yok.')));
         }
-
         const wasPaused = player.paused;
-        if (wasPaused) { player.resume(); } else { player.pause(); }
-
-        const color   = platformColor(player.currentTrack?.platform);
-        const icon    = wasPaused ? '▶️' : '⏸️';
-        const action  = wasPaused ? 'Resumed' : 'Paused';
+        wasPaused ? player.resume() : player.pause();
 
         const embed = new EmbedBuilder()
-            .setColor(color)
-            .setAuthor({ name: `${icon}  ${action}`, iconURL: interaction.client.user.displayAvatarURL() })
+            .setColor(platformColor(player.currentTrack?.platform))
+            .setAuthor({ name: wasPaused ? '▶️  Devam Ettiriliyor' : '⏸️  Duraklatıldı', iconURL: interaction.client.user.displayAvatarURL() })
             .setDescription(`**[${player.currentTrack.title}](${player.currentTrack.url})**`)
-            .addFields({ name: `${icon} Action by`, value: `${member_mention(interaction)}`, inline: true })
+            .addFields({ name: 'İşlemi yapan', value: `<@${interaction.member.id}>`, inline: true })
             .setTimestamp();
-
         if (player.currentTrack.thumbnail) embed.setThumbnail(player.currentTrack.thumbnail);
 
-        await interaction.reply(_ephemeral(embed));
+        await interaction.reply(_eph(embed));
         await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    // ── Skip ─────────────────────────────────────────────────────────────────
+    // ── Previous ──────────────────────────────────────────────────────────────
+
+    async _handlePrev(interaction, player, requesterId) {
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
+        }
+        if (!player.previousTracks?.length) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Önceki Şarkı Yok', 'Geçmişte çalınan şarkı bulunamadı.')));
+        }
+        player.previous?.();
+        const embed = new EmbedBuilder()
+            .setColor(config.bot.colors.info)
+            .setAuthor({ name: '⏮️  Önceki Şarkıya Geçildi', iconURL: interaction.client.user.displayAvatarURL() })
+            .addFields({ name: 'İşlemi yapan', value: `<@${interaction.member.id}>`, inline: true })
+            .setTimestamp();
+        await interaction.reply(_eph(embed));
+        await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
+    },
+
+    // ── Skip ──────────────────────────────────────────────────────────────────
+
     async _handleSkip(interaction, player, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can skip.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
         if (!player.currentTrack) {
-            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'There is no track to skip.')));
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Atlanacak şarkı yok.')));
         }
         if (!player.queue?.length) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Queue Empty', 'There are no more tracks in the queue to skip to.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Kuyruk Boş', 'Sırada başka şarkı yok.')));
         }
-
         const skipped = player.currentTrack;
         player.skip();
 
-        const color = platformColor(skipped.platform);
         const embed = new EmbedBuilder()
-            .setColor(color)
-            .setAuthor({ name: '⏭️  Skipped', iconURL: interaction.client.user.displayAvatarURL() })
+            .setColor(platformColor(skipped.platform))
+            .setAuthor({ name: '⏭️  Şarkı Atlandı', iconURL: interaction.client.user.displayAvatarURL() })
             .setDescription(`~~${skipped.title}~~`)
-            .addFields(
-                { name: '⏭ Skipped by', value: member_mention(interaction), inline: true },
-            )
+            .addFields({ name: 'Atlayan', value: `<@${interaction.member.id}>`, inline: true })
             .setTimestamp();
 
-        if (player.queue?.length > 0) {
+        if (player.queue?.length) {
             const next = player.queue[0];
-            embed.addFields({
-                name: '🎵 Up Next',
-                value: `**[${next.title}](${next.url})**  ·  \`${fmtDuration(next.duration)}\``,
-                inline: false,
-            });
-            embed.setFooter({ text: `${player.queue.length} track${player.queue.length !== 1 ? 's' : ''} remaining` });
+            embed.addFields({ name: '🎵 Sıradaki', value: `**[${next.title}](${next.url})**  ·  \`${_fmtDur(next.duration)}\``, inline: false });
         }
-
         if (skipped.thumbnail) embed.setThumbnail(skipped.thumbnail);
 
-        await interaction.reply(_ephemeral(embed));
+        await interaction.reply(_eph(embed));
         await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
     // ── Stop ──────────────────────────────────────────────────────────────────
+
     async _handleStop(interaction, player, client, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can stop.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
-
         const track    = player.currentTrack;
         const queueLen = player.queue?.length ?? 0;
         player.stop();
@@ -212,363 +217,342 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setColor(config.bot.colors.error)
-            .setAuthor({ name: '⏹️  Stopped', iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription(
-                track
-                    ? `Stopped **[${track.title}](${track.url})** and cleared the queue.`
-                    : 'Stopped playback and cleared the queue.'
-            )
+            .setAuthor({ name: '⏹️  Durduruldu', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(track ? `**[${track.title}](${track.url})** durduruldu ve kuyruk temizlendi.` : 'Çalma durduruldu.')
             .addFields(
-                { name: '⏹ Stopped by',    value: member_mention(interaction), inline: true },
-                { name: '🗑 Tracks cleared', value: `\`${queueLen + (track ? 1 : 0)}\``,    inline: true },
-            )
-            .setTimestamp();
-
+                { name: 'Durduran', value: `<@${interaction.member.id}>`, inline: true },
+                { name: '🗑 Silinen', value: `\`${queueLen + (track ? 1 : 0)} şarkı\``, inline: true },
+            ).setTimestamp();
         if (track?.thumbnail) embed.setThumbnail(track.thumbnail);
 
-        await interaction.reply(_ephemeral(embed));
+        await interaction.reply(_eph(embed));
         await client.musicEmbedManager?.handlePlaybackEnd(player);
     },
 
     // ── Queue ─────────────────────────────────────────────────────────────────
+
     async _handleQueue(interaction, player) {
-        const current  = player.currentTrack;
-        const queue    = player.queue ?? [];
+        const current = player.currentTrack;
+        const queue   = player.queue ?? [];
 
         if (!current && !queue.length) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Queue Empty', 'Nothing is playing and the queue is empty.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Kuyruk Boş', 'Çalınan şarkı yok ve kuyruk boş.')));
         }
 
-        const color    = platformColor(current?.platform);
-        const currentMs = player.currentTime ?? player.position ?? 0;
-
         const embed = new EmbedBuilder()
-            .setColor(color)
-            .setAuthor({ name: '📋  Queue', iconURL: interaction.client.user.displayAvatarURL() })
+            .setColor(platformColor(current?.platform))
+            .setAuthor({ name: '📋  Kuyruk', iconURL: interaction.client.user.displayAvatarURL() })
             .setTimestamp();
 
         if (current) {
-            const progress = buildProgressBar(currentMs, current.duration ?? 0);
-            embed.addFields({
-                name: `${player.paused ? '⏸' : '▶️'}  Now Playing`,
-                value: `**[${current.title}](${current.url})**\n${progress}`,
-                inline: false,
-            });
+            const ms  = player.currentTime ?? 0;
+            const bar = MusicEmbedManager.buildProgressBar(ms, current.duration ?? 0, 16);
+            embed.addFields({ name: `${player.paused ? '⏸️' : '▶️'}  Şu An Çalıyor`, value: `**[${current.title}](${current.url})**\n${bar}`, inline: false });
         }
 
         if (queue.length) {
-            const shown = queue.slice(0, 10);
-            const lines = shown.map((t, i) =>
-                `\`${String(i + 1).padStart(2, ' ')}.\` **[${t.title}](${t.url})**  ·  \`${fmtDuration(t.duration)}\``
-            ).join('\n');
-
+            const lines = queue.slice(0, 10)
+                .map((t, i) => `\`${String(i+1).padStart(2,' ')}.\` **[${t.title}](${t.url})**  ·  \`${_fmtDur(t.duration)}\``)
+                .join('\n');
             embed.addFields({
-                name: `📋  Up Next  (${queue.length} track${queue.length !== 1 ? 's' : ''})`,
-                value: lines + (queue.length > 10 ? `\n*…and ${queue.length - 10} more*` : ''),
+                name: `📋  Sıradakiler  (${queue.length} şarkı)`,
+                value: lines + (queue.length > 10 ? `\n*…ve ${queue.length-10} şarkı daha*` : ''),
                 inline: false,
             });
         }
 
-        embed.setFooter({
-            text: `Total: ${queue.length + (current ? 1 : 0)} track${queue.length + (current ? 1 : 0) !== 1 ? 's' : ''}`,
-        });
-
-        await interaction.reply(_ephemeral(embed));
+        embed.setFooter({ text: `Toplam: ${queue.length + (current ? 1 : 0)} şarkı` });
+        await interaction.reply(_eph(embed));
     },
 
     // ── Shuffle ───────────────────────────────────────────────────────────────
+
     async _handleShuffle(interaction, player, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can shuffle.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
         if ((player.queue?.length ?? 0) < 2) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Enough Tracks', 'You need at least 2 tracks in the queue to shuffle.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetersiz Şarkı', 'Karıştırmak için en az 2 şarkı gerekli.')));
         }
-
         player.shuffleQueue?.();
 
         const embed = new EmbedBuilder()
             .setColor(config.bot.colors.success)
-            .setAuthor({ name: '🔀  Queue Shuffled', iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription(`**${player.queue.length}** tracks have been shuffled.`)
-            .addFields(
-                { name: '🔀 Shuffled by', value: member_mention(interaction), inline: true },
-            );
+            .setAuthor({ name: '🔀  Kuyruk Karıştırıldı', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`**${player.queue.length}** şarkı karıştırıldı.`)
+            .addFields({ name: 'Karıştıran', value: `<@${interaction.member.id}>`, inline: true })
+            .setTimestamp();
 
         if (player.queue.length > 0) {
             embed.addFields({
-                name: '🎵 New First Three',
-                value: player.queue.slice(0, 3)
-                    .map((t, i) => `\`${i + 1}.\` **${t.title}**`)
-                    .join('\n'),
+                name: '🎵 Yeni Sıralama (ilk 3)',
+                value: player.queue.slice(0,3).map((t,i) => `\`${i+1}.\` **${t.title}**`).join('\n'),
                 inline: false,
             });
         }
 
-        embed.setTimestamp();
-
-        await interaction.reply(_ephemeral(embed));
+        await interaction.reply(_eph(embed));
         await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
-    // ── Volume modal ──────────────────────────────────────────────────────────
-    async _handleVolumeModal(interaction, player, requesterId) {
-        if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change volume.')
-            ));
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId('volume_modal')
-            .setTitle('🔊  Set Volume');
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                    .setCustomId('volume_input')
-                    .setLabel(`Current: ${player.volume ?? 80}%  —  Enter new value (0–100)`)
-                    .setStyle(TextInputStyle.Short)
-                    .setMinLength(1)
-                    .setMaxLength(3)
-                    .setPlaceholder('e.g. 75')
-                    .setRequired(true)
-            )
-        );
-
-        await interaction.showModal(modal);
-    },
-
     // ── Loop ──────────────────────────────────────────────────────────────────
+
     async _handleLoop(interaction, player, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change loop mode.')
-            ));
-        }
-        if (!player.currentTrack) {
-            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'No track is playing.')));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
 
-        // Cycle: off → track → queue → off
         let newMode, icon, label;
-        if (!player.loop || player.loop === 'off' || player.loop === false) {
-            newMode = 'track'; icon = '🔂'; label = 'Loop: Track';
+        if (!player.loop || player.loop === false || player.loop === 'off') {
+            newMode = 'track'; icon = '🔂'; label = 'Şarkı Döngüsü';
         } else if (player.loop === 'track') {
-            newMode = 'queue'; icon = '🔁'; label = 'Loop: Queue';
+            newMode = 'queue'; icon = '🔁'; label = 'Kuyruk Döngüsü';
         } else {
-            newMode = false;   icon = '➡️'; label = 'Loop: Off';
+            newMode = false;   icon = '➡️'; label = 'Döngü Kapalı';
         }
         player.loop = newMode;
 
         const embed = new EmbedBuilder()
             .setColor(config.bot.colors.info)
-            .setAuthor({ name: `${icon}  Loop Mode Changed`, iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription(`Loop mode set to **${label}**.`)
-            .addFields({ name: `${icon} Changed by`, value: member_mention(interaction), inline: true })
+            .setAuthor({ name: `${icon}  Döngü Modu Değiştirildi`, iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`Döngü modu: **${label}**`)
+            .addFields({ name: 'Değiştiren', value: `<@${interaction.member.id}>`, inline: true })
             .setTimestamp();
 
-        if (player.currentTrack?.thumbnail) embed.setThumbnail(player.currentTrack.thumbnail);
-
-        await interaction.reply(_ephemeral(embed));
+        await interaction.reply(_eph(embed));
         await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
     },
 
     // ── Autoplay ──────────────────────────────────────────────────────────────
+
     async _handleAutoplay(interaction, player, requesterId) {
         if (!_isAuthorized(interaction, requesterId)) {
-            return interaction.reply(_ephemeral(
-                MusicEmbedManager.error('Not Authorised', 'Only the DJ, someone with Manage Server, or the person who started the music can change autoplay.')
-            ));
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
         }
 
-        // If already on → turn off
         if (player.autoplay) {
             player.autoplay = false;
             const embed = new EmbedBuilder()
                 .setColor(config.bot.colors.warning)
-                .setAuthor({ name: '🎲  Autoplay Disabled', iconURL: interaction.client.user.displayAvatarURL() })
-                .setDescription('Autoplay has been turned **off**. The bot will stop when the queue is empty.')
+                .setAuthor({ name: '🎲  Autoplay Kapatıldı', iconURL: interaction.client.user.displayAvatarURL() })
+                .setDescription('Kuyruk bittiğinde bot duracak.')
                 .setTimestamp();
-
-            await interaction.reply(_ephemeral(embed));
+            await interaction.reply(_eph(embed));
             await interaction.client.musicEmbedManager?.updateNowPlayingEmbed(player);
             return;
         }
 
-        // Show genre picker
         const genres = [
             { label: 'Pop',        value: 'pop',        emoji: '🎤' },
             { label: 'Rock',       value: 'rock',       emoji: '🎸' },
             { label: 'Hip-Hop',    value: 'hiphop',     emoji: '🎧' },
-            { label: 'Electronic', value: 'electronic', emoji: '🎛️' },
-            { label: 'Jazz',       value: 'jazz',       emoji: '🎷' },
-            { label: 'Classical',  value: 'classical',  emoji: '🎻' },
+            { label: 'Elektronik', value: 'electronic', emoji: '🎛️' },
+            { label: 'Caz',        value: 'jazz',       emoji: '🎷' },
+            { label: 'Klasik',     value: 'classical',  emoji: '🎻' },
             { label: 'Metal',      value: 'metal',      emoji: '🤘' },
             { label: 'Country',    value: 'country',    emoji: '🤠' },
             { label: 'R&B',        value: 'rnb',        emoji: '💃' },
-            { label: 'Indie',      value: 'indie',      emoji: '🌿' },
-            { label: 'Latin',      value: 'latin',      emoji: '🪇' },
             { label: 'K-Pop',      value: 'kpop',       emoji: '🇰🇷' },
             { label: 'Anime',      value: 'anime',      emoji: '🎌' },
             { label: 'Lo-Fi',      value: 'lofi',       emoji: '🌙' },
-            { label: 'Random',     value: 'random',     emoji: '🎲' },
+            { label: 'Rastgele',   value: 'random',     emoji: '🎲' },
         ];
 
         const select = new StringSelectMenuBuilder()
             .setCustomId(`autoplay_genre:${requesterId}:${player.sessionId}`)
-            .setPlaceholder('Choose a genre for autoplay…')
+            .setPlaceholder('Bir tür seç…')
             .addOptions(genres.map(g =>
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(g.label)
-                    .setValue(g.value)
-                    .setEmoji(g.emoji)
+                new StringSelectMenuOptionBuilder().setLabel(g.label).setValue(g.value).setEmoji(g.emoji)
             ));
 
         const embed = new EmbedBuilder()
             .setColor(config.bot.colors.default)
-            .setAuthor({ name: '🎲  Autoplay — Genre Select', iconURL: interaction.client.user.displayAvatarURL() })
-            .setDescription('Pick a genre. Once the queue is empty the bot will automatically queue matching tracks.')
+            .setAuthor({ name: '🎲  Autoplay — Tür Seç', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription('Bir tür seç. Kuyruk bitince bot o türden şarkılar koyacak.')
             .setTimestamp();
 
         await interaction.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)], flags: [1 << 6] });
     },
 
-    // ── Lyrics ────────────────────────────────────────────────────────────────
-    async _handleLyrics(interaction, player) {
+    // ── Like / Beğen ──────────────────────────────────────────────────────────
+
+    async _handleLike(interaction, player) {
         if (!player.currentTrack) {
-            return interaction.reply(_ephemeral(MusicEmbedManager.error('Nothing Playing', 'No track is currently playing.')));
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Beğenilecek şarkı yok.')));
+        }
+        const t = player.currentTrack;
+        const embed = new EmbedBuilder()
+            .setColor('#FF6B9D')
+            .setAuthor({ name: '❤️  Şarkı Beğenildi', iconURL: interaction.client.user.displayAvatarURL() })
+            .setDescription(`**[${t.title}](${t.url})** beğenildi!`)
+            .addFields({ name: 'Sanatçı', value: `\`${t.artist || t.author || '?'}\``, inline: true })
+            .setTimestamp();
+        if (t.thumbnail) embed.setThumbnail(t.thumbnail);
+        await interaction.reply(_eph(embed));
+    },
+
+    // ── Kontrol Paneli ────────────────────────────────────────────────────────
+
+    async _handlePanel(interaction, player, client) {
+        if (!player.currentTrack) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Kontrol paneli için şarkı çalıyor olmalı.')));
         }
 
+        const embed = client.musicEmbedManager.buildControlPanelEmbed(player, player.currentTrack);
+        const rows  = client.musicEmbedManager.buildControlPanelRows(player);
+
+        const msg = await interaction.reply({ embeds: [embed], components: rows, flags: [1 << 6] });
+
+        // 5 dakika sonra paneli kapat
+        setTimeout(async () => {
+            try {
+                await interaction.editReply({ components: [] });
+            } catch { /* süresi doldu */ }
+        }, 5 * 60_000);
+    },
+
+    // ── Kontrol Paneli Transport Butonları (cp_) ──────────────────────────────
+
+    async _handleCPButton(interaction, client) {
+        const parts      = interaction.customId.split(':');
+        const btnType    = parts[0]; // cp_pause, cp_skip vb.
+        const requesterId = parts[1];
+        const sessionId  = parts[2];
+
+        const player = client.players.get(interaction.guild.id);
+        if (!player) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Aktif oynatıcı yok.')));
+        }
+
+        if (sessionId && player.sessionId && sessionId !== player.sessionId) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Süresi Doldu', 'Bu panel eski bir oturuma ait.')));
+        }
+
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
+        }
+
+        switch (btnType) {
+            case 'cp_prev':  player.previous?.(); break;
+            case 'cp_pause': player.paused ? player.resume() : player.pause(); break;
+            case 'cp_skip':  player.skip?.(); break;
+            case 'cp_loop': {
+                if (!player.loop || player.loop === false) player.loop = 'track';
+                else if (player.loop === 'track') player.loop = 'queue';
+                else player.loop = false;
+                break;
+            }
+            case 'cp_stop': {
+                player.stop();
+                client.players.delete(interaction.guild.id);
+                await client.musicEmbedManager?.handlePlaybackEnd(player);
+                break;
+            }
+        }
+
+        // Paneli güncelle
+        await client.musicEmbedManager?.updateNowPlayingEmbed(player);
+
+        const embed = client.musicEmbedManager.buildControlPanelEmbed(player, player.currentTrack);
+        const rows  = client.musicEmbedManager.buildControlPanelRows(player);
+        await interaction.update({ embeds: [embed], components: rows });
+    },
+
+    // ── Kontrol Paneli Dropdown Handler ───────────────────────────────────────
+
+    async _handleCPDropdown(interaction, client) {
+        const parts      = interaction.customId.split(':');
+        const menuType   = parts[0]; // cp_volume, cp_speed, cp_eq, cp_bass
+        const requesterId = parts[1];
+        const sessionId  = parts[2];
+
+        const player = client.players.get(interaction.guild.id);
+        if (!player) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Aktif oynatıcı yok.')));
+        }
+
+        if (sessionId && player.sessionId && sessionId !== player.sessionId) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Süresi Doldu', 'Bu panel eski bir oturuma ait.')));
+        }
+
+        if (!_isAuthorized(interaction, requesterId)) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Yetkisiz', 'Bu işlemi yapmaya yetkin yok.')));
+        }
+
+        const value = interaction.values[0];
+        await interaction.deferUpdate();
+
+        switch (menuType) {
+            case 'cp_volume': {
+                const vol = parseInt(value, 10);
+                player.setVolume(vol);
+                break;
+            }
+            case 'cp_speed': {
+                await player.setSpeed(value);
+                break;
+            }
+            case 'cp_eq': {
+                await player.setEQ(value);
+                break;
+            }
+            case 'cp_bass': {
+                await player.setBass(value);
+                break;
+            }
+        }
+
+        // Paneli ve now-playing'i güncelle
+        await client.musicEmbedManager?.updateNowPlayingEmbed(player);
+
+        const embed = client.musicEmbedManager.buildControlPanelEmbed(player, player.currentTrack);
+        const rows  = client.musicEmbedManager.buildControlPanelRows(player);
+        await interaction.editReply({ embeds: [embed], components: rows });
+    },
+
+    // ── Lyrics ────────────────────────────────────────────────────────────────
+
+    async _handleLyrics(interaction, player) {
+        if (!player.currentTrack) {
+            return interaction.reply(_eph(MusicEmbedManager.error('Şarkı Yok', 'Şarkı sözleri için şarkı çalıyor olmalı.')));
+        }
         await interaction.deferReply({ flags: [1 << 6] });
 
         const lyrics = player.currentLyrics;
         if (!lyrics?.pages?.length) {
-            return interaction.editReply({ embeds: [MusicEmbedManager.error('No Lyrics', `Could not find lyrics for **${player.currentTrack.title}**.`)] });
+            return interaction.editReply({ embeds: [MusicEmbedManager.error('Sözler Bulunamadı', `**${player.currentTrack.title}** için söz bulunamadı.`)] });
         }
 
         const buildPage = (i) => new EmbedBuilder()
             .setColor(platformColor(player.currentTrack?.platform))
-            .setAuthor({ name: '🎤  Lyrics', iconURL: interaction.client.user.displayAvatarURL() })
+            .setAuthor({ name: '🎤  Şarkı Sözleri', iconURL: interaction.client.user.displayAvatarURL() })
             .setTitle(player.currentTrack.title)
             .setURL(player.currentTrack.url || null)
             .setDescription(lyrics.pages[i])
-            .setFooter({ text: `Page ${i + 1} / ${lyrics.pages.length}  ·  Source: ${lyrics.source || 'Unknown'}` })
+            .setFooter({ text: `Sayfa ${i+1} / ${lyrics.pages.length}  ·  Kaynak: ${lyrics.source || '?'}` })
             .setTimestamp();
 
         let page = 0;
-        const msg = await interaction.editReply({ embeds: [buildPage(page)], components: _lyricsRow(page, lyrics.pages.length) });
+        const msg = await interaction.editReply({
+            embeds: [buildPage(page)],
+            components: lyrics.pages.length > 1 ? [_lyricsRow(page, lyrics.pages.length)] : [],
+        });
 
         if (lyrics.pages.length <= 1) return;
 
-        const collector = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 5 * 60_000 });
-        collector.on('collect', async i => {
+        const col = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 5*60_000 });
+        col.on('collect', async i => {
             if (i.customId === 'lyrics_prev') page = Math.max(0, page - 1);
             if (i.customId === 'lyrics_next') page = Math.min(lyrics.pages.length - 1, page + 1);
-            await i.update({ embeds: [buildPage(page)], components: _lyricsRow(page, lyrics.pages.length) });
+            await i.update({ embeds: [buildPage(page)], components: [_lyricsRow(page, lyrics.pages.length)] });
         });
-        collector.on('end', () => msg.edit({ components: [] }).catch(() => {}));
+        col.on('end', () => msg.edit({ components: [] }).catch(() => {}));
     },
 
-    // ── Search interaction ────────────────────────────────────────────────────
-    async _handleSearch(interaction, client) {
-        if (interaction.customId === 'search_cancel') {
-            global.searchResults?.delete(interaction.user.id);
-            return interaction.update({
-                embeds: [MusicEmbedManager.info('🚫  Cancelled', 'Search cancelled.', config.bot.colors.warning)],
-                components: [],
-            });
-        }
+    // ── Dual arama seçimi ─────────────────────────────────────────────────────
 
-        const idx     = parseInt(interaction.customId.replace('search_select_', ''), 10);
-        const stored  = global.searchResults?.get(interaction.user.id);
-
-        if (!stored?.results?.length) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Expired', 'Search results have expired. Run `/search` again.')],
-                components: [],
-            });
-        }
-
-        const track  = stored.results[idx];
-        if (!track) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Invalid', 'Could not find that result. Run `/search` again.')],
-                components: [],
-            });
-        }
-
-        global.searchResults.delete(interaction.user.id);
-
-        // ── Validate voice ──
-        const member = interaction.member;
-        const guild  = interaction.guild;
-
-        if (!member.voice.channel) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Voice Channel Required', 'Join a voice channel first.')],
-                components: [],
-            });
-        }
-
-        const { PermissionFlagsBits } = require('discord.js');
-        const perms = member.voice.channel.permissionsFor(guild.members.me);
-        if (!perms?.has(PermissionFlagsBits.Connect) || !perms?.has(PermissionFlagsBits.Speak)) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Missing Permissions', 'I need Connect and Speak permissions.')],
-                components: [],
-            });
-        }
-
-        // ── Show selected ──
-        await interaction.update({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor(config.bot.colors.youtube)
-                    .setAuthor({ name: '🔴 YouTube  ·  Selected', iconURL: client.user.displayAvatarURL() })
-                    .setTitle(track.title || 'Unknown')
-                    .setURL(track.url || null)
-                    .setDescription(`**Duration:** \`${fmtDuration(track.duration)}\`\n**Artist:** \`${track.artist || track.author || 'Unknown'}\``)
-                    .setFooter({ text: 'Adding to queue…' })
-                    .setTimestamp(),
-            ],
-            components: [],
-        });
-
-        // ── Queue it ──
-        let player = client.players.get(guild.id);
-        if (!player) {
-            const MusicPlayer = require('../src/MusicPlayer');
-            player = new MusicPlayer(guild, interaction.channel, member.voice.channel);
-            client.players.set(guild.id, player);
-        }
-        player.voiceChannel = member.voice.channel;
-        player.textChannel  = interaction.channel;
-
-        if (!client.musicEmbedManager) {
-            client.musicEmbedManager = new MusicEmbedManager(client);
-        }
-
-        await client.musicEmbedManager.handleMusicData(
-            guild.id,
-            { tracks: [track], isPlaylist: false },
-            member,
-            null,
-        );
-    },
-
-    // ── Dual search selection ─────────────────────────────────────────────────
     async _handleDualSelect(interaction, client) {
-        const id    = interaction.customId;
-        const parts = id.split('_'); // ['dual','sc','0','userId'] veya ['dual','cancel','userId']
-
-        // İptal
+        const parts    = interaction.customId.split('_');
         if (parts[1] === 'cancel') {
             const userId = parts.slice(2).join('_');
             global.dualResults?.delete(userId);
@@ -578,66 +562,44 @@ module.exports = {
             });
         }
 
-        const platform = parts[1]; // 'sc' veya 'sp'
+        const platform = parts[1];
         const idx      = parseInt(parts[2], 10);
         const userId   = parts.slice(3).join('_');
+        const stored   = global.dualResults?.get(userId);
 
-        const stored = global.dualResults?.get(userId);
         if (!stored) {
             return interaction.update({
-                embeds: [MusicEmbedManager.error('Süresi Doldu', 'Arama sonuçları 5 dakikada siliyor. `/play` ile tekrar ara.')],
+                embeds: [MusicEmbedManager.error('Süresi Doldu', 'Sonuçlar süresi doldu. `/play` ile tekrar ara.')],
                 components: [],
             });
         }
 
-        const track = platform === 'sc'
-            ? stored.scResults[idx]
-            : stored.spResults[idx];
-
+        const track = platform === 'sc' ? stored.scResults[idx] : stored.spResults[idx];
         if (!track) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Hata', 'Şarkı bulunamadı.')],
-                components: [],
-            });
+            return interaction.update({ embeds: [MusicEmbedManager.error('Hata', 'Şarkı bulunamadı.')], components: [] });
         }
-
         global.dualResults.delete(userId);
 
         const member = interaction.member;
         const guild  = interaction.guild;
 
         if (!member.voice.channel) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Önce bir ses kanalına gir!')],
-                components: [],
-            });
+            return interaction.update({ embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Önce bir ses kanalına gir!')], components: [] });
         }
 
-        const { PermissionFlagsBits: PF } = require('discord.js');
-        const perms = member.voice.channel.permissionsFor(guild.members.me);
-        if (!perms?.has(PF.Connect) || !perms?.has(PF.Speak)) {
-            return interaction.update({
-                embeds: [MusicEmbedManager.error('Yetki Yok', 'Ses kanalında Bağlan/Konuş yetkim yok.')],
-                components: [],
-            });
-        }
-
-        const platformLabel = platform === 'sc' ? '🟠 SoundCloud' : '🟢 Spotify';
-        const pColor        = platform === 'sc' ? config.bot.colors.soundcloud : config.bot.colors.spotify;
+        const pLabel = platform === 'sc' ? '🟠 SoundCloud' : '🟢 Spotify';
+        const pColor = platform === 'sc' ? config.bot.colors.soundcloud : config.bot.colors.spotify;
 
         const selEmbed = new EmbedBuilder()
             .setColor(pColor)
-            .setAuthor({ name: `${platformLabel}  ·  Seçildi`, iconURL: client.user.displayAvatarURL() })
+            .setAuthor({ name: `${pLabel}  ·  Seçildi`, iconURL: client.user.displayAvatarURL() })
             .setTitle(track.title || 'Bilinmeyen')
             .setURL(track.url || null)
-            .setDescription(
-                `**👤 Sanatçı:** \`${track.artist || track.author || '?'}\`\n` +
-                `**⏱ Süre:** \`${_fmtDur(track.duration)}\``
-            )
+            .setDescription(`**👤 Sanatçı:** \`${track.artist || track.author || '?'}\`\n**⏱ Süre:** \`${_fmtDur(track.duration)}\``)
             .setFooter({ text: 'Sıraya ekleniyor…' })
             .setTimestamp();
-
         if (track.thumbnail) selEmbed.setThumbnail(track.thumbnail);
+
         await interaction.update({ embeds: [selEmbed], components: [] });
 
         let player = client.players.get(guild.id);
@@ -650,20 +612,74 @@ module.exports = {
         player.textChannel  = interaction.channel;
 
         if (!client.musicEmbedManager) {
-            const MEM = require('../src/MusicEmbedManager');
-            client.musicEmbedManager = new MEM(client);
+            client.musicEmbedManager = new MusicEmbedManager(client);
         }
 
-        await client.musicEmbedManager.handleMusicData(
-            guild.id,
-            { tracks: [track], isPlaylist: false },
-            member,
-            null,
-        );
+        await client.musicEmbedManager.handleMusicData(guild.id, { tracks: [track], isPlaylist: false }, member, null);
+    },
+
+    // ── Search seçimi ─────────────────────────────────────────────────────────
+
+    async _handleSearch(interaction, client) {
+        if (interaction.customId === 'search_cancel') {
+            global.searchResults?.delete(interaction.user.id);
+            return interaction.update({
+                embeds: [MusicEmbedManager.info('✖️  İptal', 'Arama iptal edildi.', config.bot.colors.warning)],
+                components: [],
+            });
+        }
+
+        const idx    = parseInt(interaction.customId.replace('search_select_', ''), 10);
+        const stored = global.searchResults?.get(interaction.user.id);
+
+        if (!stored?.results?.length) {
+            return interaction.update({ embeds: [MusicEmbedManager.error('Süresi Doldu', 'Sonuçlar süresi doldu.')], components: [] });
+        }
+
+        const track = stored.results[idx];
+        if (!track) {
+            return interaction.update({ embeds: [MusicEmbedManager.error('Hata', 'Şarkı bulunamadı.')], components: [] });
+        }
+        global.searchResults.delete(interaction.user.id);
+
+        const member = interaction.member;
+        const guild  = interaction.guild;
+
+        if (!member.voice.channel) {
+            return interaction.update({ embeds: [MusicEmbedManager.error('Ses Kanalı Gerekli', 'Önce bir ses kanalına gir!')], components: [] });
+        }
+
+        await interaction.update({
+            embeds: [
+                new EmbedBuilder()
+                    .setColor(config.bot.colors.soundcloud)
+                    .setAuthor({ name: '🟠 SoundCloud  ·  Seçildi', iconURL: client.user.displayAvatarURL() })
+                    .setTitle(track.title || 'Bilinmeyen')
+                    .setURL(track.url || null)
+                    .setDescription(`**👤** \`${track.artist || track.author || '?'}\`  ·  **⏱** \`${_fmtDur(track.duration)}\``)
+                    .setFooter({ text: 'Sıraya ekleniyor…' })
+                    .setTimestamp(),
+            ],
+            components: [],
+        });
+
+        let player = client.players.get(guild.id);
+        if (!player) {
+            const MP = require('../src/MusicPlayer');
+            player = new MP(guild, interaction.channel, member.voice.channel);
+            client.players.set(guild.id, player);
+        }
+        player.voiceChannel = member.voice.channel;
+        player.textChannel  = interaction.channel;
+
+        if (!client.musicEmbedManager) client.musicEmbedManager = new MusicEmbedManager(client);
+        await client.musicEmbedManager.handleMusicData(guild.id, { tracks: [track], isPlaylist: false }, member, null);
     },
 
     // ── Help refresh ──────────────────────────────────────────────────────────
-    async _handleHelpRefresh(interaction, client) {        await interaction.deferUpdate();
+
+    async _handleHelpRefresh(interaction, client) {
+        await interaction.deferUpdate();
         const helpCmd = require('../commands/help.js');
         const embed   = await helpCmd._buildEmbed(client, interaction.guild.id);
         const row     = helpCmd._buildButtons();
@@ -673,35 +689,11 @@ module.exports = {
 
 // ── Tiny helpers ──────────────────────────────────────────────────────────────
 
-function member_mention(interaction) {
-    return `<@${interaction.member.id}>`;
-}
-
-function _fmtDur(sec) {
-    const s = Math.floor(Number(sec) || 0);
-    if (!s) return '?:??';
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const ss = s % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-    return `${m}:${String(ss).padStart(2, '0')}`;
-}
-
 function _lyricsRow(page, total) {
-    return [
-        new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('lyrics_prev')
-                .setLabel('Previous')
-                .setEmoji('⬅️')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(page === 0),
-            new ButtonBuilder()
-                .setCustomId('lyrics_next')
-                .setLabel('Next')
-                .setEmoji('➡️')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(page === total - 1),
-        ),
-    ];
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('lyrics_prev').setLabel('Önceki').setEmoji('⬅️')
+            .setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+        new ButtonBuilder().setCustomId('lyrics_next').setLabel('Sonraki').setEmoji('➡️')
+            .setStyle(ButtonStyle.Secondary).setDisabled(page === total - 1),
+    );
 }
