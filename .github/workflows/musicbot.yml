@@ -5,13 +5,7 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
-  ⏳  Waiting for guild cache…
-  [Shard N/A] 🔄  Starting session restore…
-  🗑  Cache cleanup: 0 removed, 0 protected
-  [Shard N/A] ✅  Session restore complete
-▶️  Playing: manifest - TRALALA (229.246s, offset: 0ms)
-🕒 Track watchdog: 229.246s remaining (229.246s total, 0s offset)
-❌ Failed to fetch lyrics from Genius: Unexpected token '<', "<!DOCTYPE "... is not valid JSONconcurrency:
+concurrency:
   group: music-bot-runtime
   cancel-in-progress: true
 
@@ -55,8 +49,8 @@ jobs:
       - name: .env olustur
         working-directory: ./MusicBot-main
         env:
-          DISCORD_TOKEN:        ${{ secrets.MUSICBOT_TOKEN }}
-          SPOTIFY_CLIENT_ID:    ${{ secrets.SPOTIFY_CLIENT_ID }}
+          DISCORD_TOKEN:         ${{ secrets.MUSICBOT_TOKEN }}
+          SPOTIFY_CLIENT_ID:     ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: |
           {
