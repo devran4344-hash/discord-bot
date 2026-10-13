@@ -54,8 +54,10 @@ function buildProgressBar(currentMs, totalSec, barLen = 20) {
 }
 
 function buildVolumeBar(vol, len = 10) {
-    const filled = Math.round((vol / 100) * len);
-    return `${'▰'.repeat(filled)}${'▱'.repeat(len - filled)}  **${vol}%**`;
+    const pct    = Math.min(Math.max(vol, 0), 200) / 200;
+    const filled = Math.min(Math.round(pct * len), len);
+    const empty  = Math.max(len - filled, 0);
+    return `${'▰'.repeat(filled)}${'▱'.repeat(empty)}  **${vol}%**`;
 }
 
 // ─── MusicEmbedManager ───────────────────────────────────────────────────────

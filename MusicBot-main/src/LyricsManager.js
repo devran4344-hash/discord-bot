@@ -144,14 +144,14 @@ class LyricsManager {
                     }
                 } catch (error) {
                     if (i === attempts.length - 1) {
-                        console.error('❌ Failed to fetch lyrics from LRCLIB:', error.message);
+                        console.warn('⚠️ LRCLIB lyrics alınamadı:', error.message);
                     }
                 }
             }
 
             return null;
         } catch (error) {
-            console.error('❌ Failed to fetch lyrics from LRCLIB:', error.message);
+            console.warn('⚠️ LRCLIB lyrics alınamadı:', error.message);
             return null;
         }
     }
