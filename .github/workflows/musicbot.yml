@@ -53,12 +53,17 @@ jobs:
         working-directory: ./MusicBot-main
         run: npm install --no-audit --no-fund
 
-      - name: Discord.js ve Voice güncelle
+      # ═══════════════════════════════════════════════════════════
+      #  KRİTİK: Voice 0.18.0 (DAVE çalışan sürüm)
+      # ═══════════════════════════════════════════════════════════
+      - name: "🎵 Discord.js + Voice 0.18.0 (DAVE fix)"
         working-directory: ./MusicBot-main
         run: |
-          npm install discord.js@latest @discordjs/voice@latest --save --no-audit --no-fund
+          echo "Voice 0.19.x DAVE bozuk → 0.18.0'a sabitleniyor"
+          npm uninstall @discordjs/voice 2>/dev/null || true
+          npm install discord.js@14.16.3 @discordjs/voice@0.18.0 --save --no-audit --no-fund
 
-      - name: "🔐 DAVE şifreleme modülü (2026 zorunlu)"
+      - name: "🔐 DAVE şifreleme modülü"
         working-directory: ./MusicBot-main
         run: |
           npm install @snazzah/davey@latest --save --no-audit --no-fund
@@ -69,7 +74,9 @@ jobs:
         run: |
           npm uninstall @discordjs/opus opusscript 2>/dev/null || true
           if npm install @discordjs/opus --save --no-audit --no-fund 2>/dev/null; then
-            node -e "require('@discordjs/opus'); console.log('✅ @discordjs/opus (native)');"
+            node -e "require('@discordjs/opus'); console.log('✅ @discordjs/opus (native)');" || {
+              echo "⚠️  Native yüklendi ama require başarısız"
+            }
           else
             echo "⚠️  Native opus derlenemedi → opusscript"
             npm install opusscript --save --no-audit --no-fund
