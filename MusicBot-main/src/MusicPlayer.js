@@ -1242,11 +1242,6 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
             await this.handleError(error, errorMsg);
             return { success: false, message: errorMsg };
         }
-
-            const errorMsg = await ErrorHandler.handle(error, this.guild.id, 'MusicPlayer.play');
-            await this.handleError(error, errorMsg);
-            return { success: false, message: errorMsg };
-        }
     }
 
     scheduleTrackWatchdog(streamInfo = null) {
