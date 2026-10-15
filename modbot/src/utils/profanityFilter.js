@@ -192,7 +192,7 @@ const BANNED_WORDS = {
     'yavşak1', 'yrrk.o.ç', 'yrrk@mc1k', 'yvsk1', 'yvsk1m', 'z1b1d1', 'z1k11m', 'z1k3y1m',
     'z1kkım', 'z1ks11n', 'z1ks1n', 'z1kım', 'ç.ü.k', 'ıbnelık1', 'ş.e.r.e.f.s.i.z', 'ahmak',
     'amsalak', 'anavrat', 'atkafası', 'avrat', 'aşağılık', 'beyinsiz', 'boynuzlu', 'büyükbaş',
-    'cenabet', 'dalaksız', 'dalkavuk', 'dallama', 'deyyus', 'dingil', 'domuz', 'dönek',
+    'cenabet', 'dalaksız', 'dalkavuk', 'dallama', 'deyyus', 'dingil', 'dönek',
     'dürzü', 'ebleh', 'embesil', 'ezik', 'eşek sıpası', 'gabdız', 'gavur', 'gevşek', 'hayvan',
     'hayvan herif', 'hergele', 'hödük', 'hırsız', 'hıyar ağası', 'idiot', 'idiyot', 'iffetsiz',
     'kafasiz', 'kafasız', 'kaypak', 'kaz kafalı', 'köpek', 'kılkuyruk', 'lavuk', 'liboş',
