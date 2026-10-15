@@ -113,6 +113,10 @@ class MusicPlayer {
         this.activeStreamInfo = null;
         this.lastPlaybackPosition = 0;
         this.currentTrackStartOffsetMs = 0;
+                // ── Sessiz retry sistemi (5 deneme) ──
+        this.playRetries = 0;
+        this.maxPlayRetries = 5;
+        this._lastRetriedTrackUrl = null;
 
         // Lyrics system (button-only, no sync)
         this.currentLyrics = null; // Lyrics data for current track
@@ -190,12 +194,16 @@ class MusicPlayer {
 
     setupEvents() {
         // Audio player events
-        this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
-            // When resuming, adjust startTime to account for elapsed offset
-            if (this.paused && this.pausedTime > 0) {
-                // Resuming from pause - keep the accumulated pausedTime
-                this.startTime = Date.now();
-            } else if (!this.startTime) {
+this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
+    // ✅ Başarıyla çaldı → retry sayacını sıfırla
+    this.playRetries = 0;
+    this._lastRetriedTrackUrl = null;
+
+    // When resuming, adjust startTime to account for elapsed offset
+    if (this.paused && this.pausedTime > 0) {
+        // Resuming from pause - keep the accumulated pausedTime
+        this.startTime = Date.now();
+    } else if (!this.startTime) {
                 // First time playing - set start time accounting for any offset
                 this.startTime = Date.now();
             }
@@ -1190,8 +1198,9 @@ class MusicPlayer {
                 this.currentDownloadedFile = null;
             }
 
-            // DRM hatası ise otomatik sıradaki şarkıya geç
             const errMsg = error?.message || String(error) || '';
+
+            // DRM hatası ise otomatik sıradaki şarkıya geç
             if (errMsg.includes('DRM protected') || errMsg.includes('DRM')) {
                 console.log(`⚠️ DRM korumalı şarkı atlanıyor: ${this.currentTrack?.title || 'Bilinmeyen'}`);
                 if (this.textChannel) {
@@ -1200,7 +1209,8 @@ class MusicPlayer {
                     } catch (_) {}
                 }
                 this.currentTrack = null;
-                // Sıradaki şarkıya geç
+                this.playRetries = 0;
+                this._lastRetriedTrackUrl = null;
                 if (this.queue.length > 0) {
                     this.currentTrack = this.queue.shift();
                     return await this.play(null, 0);
@@ -1208,6 +1218,30 @@ class MusicPlayer {
                     return { success: false, message: 'DRM korumalı şarkı, sırada başka şarkı yok.' };
                 }
             }
+
+            // ── 🔁 Sessiz retry: aynı şarkı için 5 kez daha dene ─────────────
+            const currentUrl = this.currentTrack?.url;
+            if (currentUrl && this.playRetries < this.maxPlayRetries) {
+                if (this._lastRetriedTrackUrl !== currentUrl) {
+                    this.playRetries = 0;
+                    this._lastRetriedTrackUrl = currentUrl;
+                }
+                this.playRetries++;
+                const delay = Math.min(1000 * this.playRetries, 5000);
+                console.log(chalk.gray(`  🔁 [retry ${this.playRetries}/${this.maxPlayRetries}] ${this.currentTrack.title} — ${delay}ms sonra tekrar deneniyor…`));
+                await new Promise(r => setTimeout(r, delay));
+                return this.play(null, this.currentTrackStartOffsetMs || 0);
+            }
+
+            // ⛔ 5 deneme de başarısız → kullanıcıya mesaj, sıradaki şarkıya geç
+            console.log(chalk.red(`  ⛔ ${this.currentTrack?.title || 'Track'} — ${this.maxPlayRetries} denemede çalınamadı.`));
+            this.playRetries = 0;
+            this._lastRetriedTrackUrl = null;
+
+            const errorMsg = await ErrorHandler.handle(error, this.guild.id, 'MusicPlayer.play');
+            await this.handleError(error, errorMsg);
+            return { success: false, message: errorMsg };
+        }
 
             const errorMsg = await ErrorHandler.handle(error, this.guild.id, 'MusicPlayer.play');
             await this.handleError(error, errorMsg);
