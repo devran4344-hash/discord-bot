@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'   # ⬅️ Node 24 yerine 20 (opus uyumluluğu için)
+          node-version: '24'   # ⬅️ proje Node 24 istiyor
 
       - name: FFmpeg kur
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
@@ -32,14 +32,12 @@ jobs:
         working-directory: ./MusicBot-main
         run: |
           npm install discord.js@latest @discordjs/voice@latest --save --no-audit --no-fund
-          node -e "console.log('voice:', require('@discordjs/voice/package.json').version)"
 
-      - name: Opus kur (pure JS - Node 24 uyumsuzluğu için)
+      - name: Opus kur (pure JS)
         working-directory: ./MusicBot-main
         run: |
           npm uninstall @discordjs/opus || true
           npm install opusscript --save --no-audit --no-fund
-          node -e "console.log(require('opusscript') ? 'Opusscript OK' : 'FAIL')"
 
       - name: yt-dlp binary kur
         working-directory: ./MusicBot-main
@@ -87,7 +85,7 @@ jobs:
       - name: Botu calistir
         working-directory: ./MusicBot-main
         env:
-          NODE_OPTIONS: "--dns-result-order=ipv4first"   # ⬅️ UDP/IPv6 sorunu için
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
         run: |
           node index.js &
           BOT_PID=$!
