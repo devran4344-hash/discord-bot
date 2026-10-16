@@ -1,0 +1,40 @@
+﻿name: Kawai Bot Calistirici
+
+on:
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: kawai-bot
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        working-directory: kawai
+
+    steps:
+      - name: Kodu Cek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Bagimliliklari Yükle
+        run: npm install
+
+      - name: Botu Baslat
+        env:
+          DISCORD_TOKEN: ${{ secrets.KAWAI_TOKEN }}
+          CLIENT_ID: ${{ secrets.KAWAI_CLIENT_ID }}
+          KAWAI_NVIDIA_API_KEY: ${{ secrets.KAWAI_NVIDIA_API_KEY }}
+          KAWAI_OPENAI_API_KEY: ${{ secrets.KAWAI_OPENAI_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          KAWAI_OWNER_IDS: ${{ secrets.KAWAI_OWNER_IDS }}
+        run: npm start
