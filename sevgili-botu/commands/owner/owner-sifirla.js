@@ -1,11 +1,11 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../utils/database');
 const { error, owner } = require('../../utils/embeds');
 const config = require('../../config');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('owner-sifirla')
+        .setName('owner_sifirla')
         .setDescription('[OWNER] Kullanicinin tum verilerini sifirla')
         .addUserOption(opt => opt.setName('kullanici').setDescription('Hedef').setRequired(true)),
 

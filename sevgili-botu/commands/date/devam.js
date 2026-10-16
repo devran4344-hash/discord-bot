@@ -1,4 +1,4 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../utils/database');
 const dateUtil = require('../../utils/date');
 const { error, baseEmbed } = require('../../utils/embeds');
@@ -6,7 +6,7 @@ const config = require('../../config');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('date-devam')
+        .setName('date_devam')
         .setDescription('Aktif date e devam et')
         .addStringOption(opt =>
             opt.setName('secim').setDescription('Ne yapmak istersin?').setRequired(true).setMaxLength(300)

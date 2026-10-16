@@ -1,9 +1,9 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { error } = require('../../utils/embeds');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('karakter-duzenle')
+        .setName('karakter_duzenle')
         .setDescription('Karakterini duzenle (sifirlayip yeniden olustur)'),
 
     async execute(interaction) {

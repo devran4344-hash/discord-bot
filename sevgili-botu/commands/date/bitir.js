@@ -1,11 +1,11 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../utils/database');
 const dateUtil = require('../../utils/date');
 const { error, dateOzeti } = require('../../utils/embeds');
 const config = require('../../config');
 
 module.exports = {
-    data: new SlashCommandBuilder().setName('date-bitir').setDescription('Date i bitir ve ozeti gor'),
+    data: new SlashCommandBuilder().setName('date_bitir').setDescription('Date i bitir ve ozeti gor'),
 
     async execute(interaction) {
         await interaction.deferReply();

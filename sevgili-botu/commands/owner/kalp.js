@@ -1,11 +1,11 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../utils/database');
 const { error, owner } = require('../../utils/embeds');
 const config = require('../../config');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('owner-kalp')
+        .setName('owner_kalp')
         .setDescription('[OWNER] Kullaniciya kalp ver/al')
         .addUserOption(opt => opt.setName('kullanici').setDescription('Hedef').setRequired(true))
         .addIntegerOption(opt =>
@@ -26,7 +26,7 @@ module.exports = {
         const verb = miktar >= 0 ? 'verildi' : 'alindi';
 
         return interaction.editReply({
-            embeds: [owner('Kalp Islem Tamam', `<@${target.id}> kullanicisina **${Math.abs(miktar)} 💎** ${verb}.\nYeni bakiye: **${user?.cuzdan || 0} 💎**`)]
+            embeds: [owner('Kalp Islem Tamam', `<@${target.id}> kullanicisina **${Math.abs(miktar)} ??** ${verb}.\nYeni bakiye: **${user?.cuzdan || 0} ??**`)]
         });
     }
 };

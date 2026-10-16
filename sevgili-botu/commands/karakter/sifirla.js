@@ -1,10 +1,10 @@
-﻿const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const db = require('../../utils/database');
 const { success, error } = require('../../utils/embeds');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('karakter-sifirla')
+        .setName('karakter_sifirla')
         .setDescription('Karakterini tamamen sifirla'),
 
     async execute(interaction) {
