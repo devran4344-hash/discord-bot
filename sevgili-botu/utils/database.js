@@ -1,4 +1,4 @@
-﻿// Kullanici CRUD Islemleri
+// Kullanici CRUD Islemleri
 const { db, admin } = require('./firebase');
 
 const usersCol = db.collection('sevgili_users');
@@ -14,6 +14,7 @@ async function getUser(userId) {
 }
 
 async function createUser(userId, kullaniciAdi) {
+    const ref = usersCol.doc(userId);
     const fresh = {
         kullaniciAdi,
         karakter: null,
