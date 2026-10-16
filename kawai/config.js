@@ -19,12 +19,12 @@ module.exports = {
     },
 
     ai: {
-        nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1",
-        nvidiaChatModel: "meta/llama-4-maverick-17b-128e-instruct",
-        nvidiaVisionModel: "meta/llama-4-maverick-17b-128e-instruct",
-        imageModel: "dall-e-3",
-        imageEnabled: true
-    },
+    nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1",
+    nvidiaChatModel: "meta/llama-4-maverick-17b-128e-instruct",
+    nvidiaVisionModel: "meta/llama-4-maverick-17b-128e-instruct",
+    imageModel: "dall-e-3",
+    imageEnabled: true
+}
 
     xp: {
         messageXp: 10,
