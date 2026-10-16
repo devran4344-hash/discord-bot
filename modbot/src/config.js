@@ -348,7 +348,7 @@ module.exports = {
     memberRoller:  ['1553167045871276224'],   // Üye rolü — kayıt edince verilir, kayıtsız rol alınır
 
     // Bu rollere sahip olanlar !kayit ve /kayit yapabilir
-    yetkiliRoller: ['1553117362092380294'],   // Örn: ['777888999']
+    yetkiliRoller: ['1553117362092380294'],   // Örn: ['1553117362092380294']
 
     // İsim formatı — {isim} zorunlu, {sayı} opsiyonel
     // Örn: '{isim}' → 'Ahmet'

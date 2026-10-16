@@ -24,7 +24,7 @@ const BANNED_WORDS = {
 
   // ─── TÜRKÇE — Tam kelime (kısa/tehlikeli yanlış alarm yapanlar) ─────
   turkce_exact: [
-    'it', 'oç', 'göt', 'bok', 'amk', 'ibne', 'piç', 'mal', 'eşek', 'öküz', 'hıyar', 'gerzek',
+    'göt', 'bok', 'amk', 'ibne', 'piç', 'eşek', 'öküz', 'gerzek',
     'salak', 'aptal', 'dangalak', 'alçak', 'kalleş', 'namert', 'yavşak', 'kahpe', 'kaltak',
     'sürtük', 'şerefsiz', 'namussuz', 'haysiyetsiz', 'orospu', 'yarrak', 'gerizekalı', 'abaza',
     'abazan', 'abazn', 'agzınascm', 'allahsiz', 'allahsız', 'amarım', 'ambiti', 'amcigi',
@@ -142,7 +142,7 @@ const BANNED_WORDS = {
     'c0mmer', 'c1b1ll1yet', 'c1ns1z', 'c1v1k', 'c4h1l', 'cebel1', 'cedd1n1', 'cıbıl1',
     'cıvık1', 'cıvıtm4', 'd-a-s-s-a-k', 'd-a-ş-a-k', 'd-a-ş-ş-a-k', 'd.a.s.s.a.k', 'd.a.ş.a.k',
     'd.a.ş.ş.a.k', 'd.o.m.a.l', 'd0mal', 'd0maldı', 'd0maldın', 'd0malt', 'd1ktıler', 'd1ldo',
-    'd1ngıl', 'd1ns1z', 'd1rek', 'd4mızlık', 'd4şak', 'dall4ma', 'daltassak1', 'dalyarr4k',
+    'd1ngıl', 'd1ns1z', 'd4mızlık', 'd4şak', 'dall4ma', 'daltassak1', 'dalyarr4k',
     'dangalak1', 'dassag1', 'dassag1m', 'daşak1', 'daşşak1', 'döl1', 'döl1srafı', 'dölsüz1',
     'e.b.e.n.i', 'e.b.e.n.i.n', 'e.c.d.a.d.ı.n.ı', 'eb-en', 'eb-eni', 'eben1', 'eben1n',
     'eben1nk1', 'ebene1', 'ebenin-a', 'ec-dadını', 'ecdad1n1', 'ecdad1nız', 'ecdadın1',
@@ -192,7 +192,7 @@ const BANNED_WORDS = {
     'yavşak1', 'yrrk.o.ç', 'yrrk@mc1k', 'yvsk1', 'yvsk1m', 'z1b1d1', 'z1k11m', 'z1k3y1m',
     'z1kkım', 'z1ks11n', 'z1ks1n', 'z1kım', 'ç.ü.k', 'ıbnelık1', 'ş.e.r.e.f.s.i.z', 'ahmak',
     'amsalak', 'anavrat', 'atkafası', 'avrat', 'aşağılık', 'beyinsiz', 'boynuzlu', 'büyükbaş',
-    'cenabet', 'dalaksız', 'dalkavuk', 'dallama', 'deyyus', 'dingil', 'domuz', 'dönek',
+    'cenabet', 'dalaksız', 'dalkavuk', 'dallama', 'deyyus', 'dingil', 'dönek',
     'dürzü', 'ebleh', 'embesil', 'ezik', 'eşek sıpası', 'gabdız', 'gavur', 'gevşek', 'hayvan',
     'hayvan herif', 'hergele', 'hödük', 'hırsız', 'hıyar ağası', 'idiot', 'idiyot', 'iffetsiz',
     'kafasiz', 'kafasız', 'kaypak', 'kaz kafalı', 'köpek', 'kılkuyruk', 'lavuk', 'liboş',
@@ -210,7 +210,7 @@ const BANNED_WORDS = {
     '.ç', '@m', 'a', 'ag', 'am', 'anal', 'anan', 'anas', 'anay', 'deliği', 'e!', 'evladı',
     'feryadı', 'g', 'girsin', 'kafam', 'koca', 'kurusu', 'laciye', 'meme', 'memelerini',
     'o.', 'oe', 'patlak', 'tipini', 'tipinizi',
-    'veren', 'verir', 'zar', 'zekalı', 'çocukları', 'amlar', 'göte', 'götler',
+    'amlar', 'göte', 'götler',
     'götlerde', 'götlerden', 'götlere', 'götleri', 'götlerin', 'götte', 'saksocu', 'saksocuda',
     'saksocudan', 'saksocular', 'saksoculara', 'saksocularda', 'saksoculardan', 'saksocuları',
     'saksocuların', 'saksocunun', 'saksocuya', 'saksocuyu', 'siklerde', 'siklerden', 'siklere',

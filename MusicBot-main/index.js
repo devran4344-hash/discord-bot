@@ -36,6 +36,53 @@ function printBanner(tag, shardId, guilds) {
     console.log('');
 }
 
+// ─── Voice / Player diagnostics ───────────────────────────────────────────────
+
+function attachPlayerDiagnostics(player, guildId) {
+    if (!player || player.__diagAttached) return;
+    player.__diagAttached = true;
+
+    const tag = `[G${guildId}]`;
+
+    // Player state / error
+    if (typeof player.on === 'function') {
+        player.on('stateChange', (o, n) => {
+            console.log(chalk.cyan(`  🎵 ${tag} Player: ${o?.status} → ${n?.status}`));
+        });
+        player.on('error', (e) => {
+            console.error(chalk.red(`  ❌ ${tag} Player error:`), e);
+        });
+    }
+
+    // Voice connection — geç oluşturulduğu için bekleyerek bağlan
+    let attempts = 0;
+    const iv = setInterval(() => {
+        attempts++;
+        let conn = null;
+        try { conn = getVoiceConnection(guildId); } catch { /* ignore */ }
+
+        if (conn) {
+            clearInterval(iv);
+            console.log(chalk.magenta(`  🔊 ${tag} Voice current state: ${conn.state?.status}`));
+
+            conn.on('stateChange', (o, n) => {
+                console.log(chalk.magenta(`  🔊 ${tag} Voice: ${o?.status} → ${n?.status}`));
+                if (n?.status === 'ready')        console.log(chalk.green(`  ✅ ${tag} Voice READY`));
+                if (n?.status === 'disconnected') console.error(chalk.red(`  ❌ ${tag} Voice DISCONNECTED`));
+            });
+            conn.on('error', (e) => {
+                console.error(chalk.red(`  ❌ ${tag} Voice error:`), e);
+            });
+
+            // Eğer zaten ready ise direkt işaretle
+            if (conn.state?.status === 'ready') {
+                console.log(chalk.green(`  ✅ ${tag} Voice zaten READY`));
+            }
+        }
+        if (attempts >= 30) clearInterval(iv); // 30 sn sonra vazgeç
+    }, 1000);
+}
+
 // ─── Audio cache cleanup ──────────────────────────────────────────────────────
 
 async function cleanupAudioCache() {
@@ -45,8 +92,8 @@ async function cleanupAudioCache() {
             fs.mkdirSync(cacheDir, { recursive: true });
             return;
         }
-        const files     = await fsPromises.readdir(cacheDir);
-        const protected_ = PlayerStateManager.getProtectedCacheFiles();
+        const files      = await fsPromises.readdir(cacheDir);
+        const protected_ = PlayerStateManager.getProtectedCacheFiles?.() ?? new Set();
         let deleted = 0, kept = 0;
         for (const file of files) {
             const abs = path.resolve(path.join(cacheDir, file));
@@ -99,7 +146,7 @@ async function restoreSavedPlayers(client) {
             }
 
             const player = new MusicPlayer(guild, textChannel, voiceChannel);
-            client.players.set(guildId, player);
+            client.players.set(guildId, player); // diagnostics patch otomatik çalışacak
 
             await player.restoreFromState(state);
             console.log(chalk.green(`  ✅  Restored: ${chalk.bold(guild.name)}`));
@@ -127,6 +174,16 @@ setTimeout(() => {
 
     client.commands = new Collection();
     client.players  = new Collection();
+
+    // ── Players Collection'a diagnostics otomatik bağla (monkey-patch) ───────
+    const _origPlayersSet = client.players.set.bind(client.players);
+    client.players.set = function (guildId, player) {
+        const result = _origPlayersSet(guildId, player);
+        try { attachPlayerDiagnostics(player, guildId); } catch (e) {
+            console.error(chalk.red('  ❌  attachPlayerDiagnostics error:'), e?.message);
+        }
+        return result;
+    };
 
     // Music embed manager — shared globally for MusicPlayer access
     client.musicEmbedManager = new MusicEmbedManager(client);

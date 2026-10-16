@@ -5,13 +5,7 @@ on:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
-  ⏳  Waiting for guild cache…
-  [Shard N/A] 🔄  Starting session restore…
-  🗑  Cache cleanup: 0 removed, 0 protected
-  [Shard N/A] ✅  Session restore complete
-▶️  Playing: manifest - TRALALA (229.246s, offset: 0ms)
-🕒 Track watchdog: 229.246s remaining (229.246s total, 0s offset)
-❌ Failed to fetch lyrics from Genius: Unexpected token '<', "<!DOCTYPE "... is not valid JSONconcurrency:
+concurrency:
   group: music-bot-runtime
   cancel-in-progress: true
 
@@ -27,18 +21,83 @@ jobs:
         with:
           node-version: '24'
 
+      # ═══════════════════════════════════════════════════════════
+      #  SİSTEM DEBUG
+      # ═══════════════════════════════════════════════════════════
+      - name: "🔍 Sistem bilgisi"
+        run: |
+          echo "════════════════════════════════════════════════════"
+          echo "  SİSTEM DEBUG"
+          echo "════════════════════════════════════════════════════"
+          echo "Node:    $(node -v)"
+          echo "NPM:     $(npm -v)"
+          echo "OS:      $(uname -a)"
+          echo "CPU:     $(nproc) çekirdek"
+          echo "RAM:     $(free -h | grep Mem)"
+          echo "Disk:    $(df -h / | tail -1)"
+          echo "IP:      $(curl -s ifconfig.me || echo 'bilinmiyor')"
+          echo "════════════════════════════════════════════════════"
+
       - name: FFmpeg kur
         run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
 
-      - name: Bagimliliklari kur
+      - name: "🔍 FFmpeg versiyon"
+        run: |
+          echo "FFmpeg: $(ffmpeg -version | head -1)"
+          echo "── Encoder'lar (opus) ──"
+          ffmpeg -hide_banner -encoders 2>/dev/null | grep -i opus || echo "  ⚠️ opus encoder YOK"
+          echo "── Decoder'lar (opus) ──"
+          ffmpeg -hide_banner -decoders 2>/dev/null | grep -i opus || echo "  ⚠️ opus decoder YOK"
+
+      - name: Bağımlılıkları kur
         working-directory: ./MusicBot-main
         run: npm install --no-audit --no-fund
 
-      - name: Opus native kur
+      # ═══════════════════════════════════════════════════════════
+      #  KRİTİK: Voice 0.18.0 (DAVE çalışan sürüm)
+      # ═══════════════════════════════════════════════════════════
+      - name: "🎵 Discord.js + Voice 0.18.0 (DAVE fix)"
         working-directory: ./MusicBot-main
         run: |
-          npm install @discordjs/opus --save --no-audit --no-fund
-          node -e "console.log(require('@discordjs/opus').OpusEncoder ? 'Opus OK' : 'Opus FAIL')"
+          echo "Voice 0.19.x DAVE bozuk → 0.18.0'a sabitleniyor"
+          npm uninstall @discordjs/voice 2>/dev/null || true
+          npm install discord.js@14.16.3 @discordjs/voice@0.18.0 --save --no-audit --no-fund
+
+      - name: "🔐 DAVE şifreleme modülü"
+        working-directory: ./MusicBot-main
+        run: |
+          npm install @snazzah/davey@latest --save --no-audit --no-fund
+          node -e "try { require('@snazzah/davey'); console.log('✅ DAVE modülü yüklendi'); } catch(e) { console.log('❌ DAVE YOK:', e.message); process.exit(1); }"
+
+      - name: "🎵 Opus kur (native dene, olmazsa opusscript)"
+        working-directory: ./MusicBot-main
+        run: |
+          npm uninstall @discordjs/opus opusscript 2>/dev/null || true
+          if npm install @discordjs/opus --save --no-audit --no-fund 2>/dev/null; then
+            node -e "require('@discordjs/opus'); console.log('✅ @discordjs/opus (native)');" || {
+              echo "⚠️  Native yüklendi ama require başarısız"
+            }
+          else
+            echo "⚠️  Native opus derlenemedi → opusscript"
+            npm install opusscript --save --no-audit --no-fund
+          fi
+
+      - name: "🔍 Kütüphane versiyonları"
+        working-directory: ./MusicBot-main
+        run: |
+          echo "════════════════════════════════════════════════════"
+          echo "  KÜTÜPHANE VERSİYONLARI"
+          echo "════════════════════════════════════════════════════"
+          for pkg in discord.js @discordjs/voice @snazzah/davey prism-media ffmpeg-static youtube-dl-exec; do
+            v=$(node -e "try { console.log(require('$pkg/package.json').version); } catch { console.log('YOK'); }" 2>/dev/null)
+            printf "  %-22s %s\n" "$pkg:" "$v"
+          done
+          echo "════════════════════════════════════════════════════"
+          echo ""
+          echo "── Encoder testi ──"
+          node -e "try { require('@discordjs/opus'); console.log('  ✅ @discordjs/opus (native)'); } catch { console.log('  ⚠️  @discordjs/opus yok'); }"
+          node -e "try { require('opusscript'); console.log('  ✅ opusscript (pure JS)'); } catch { console.log('  ⚠️  opusscript yok'); }"
+          node -e "try { require('@snazzah/davey'); console.log('  ✅ @snazzah/davey (DAVE)'); } catch { console.log('  ❌ @snazzah/davey YOK — ses çalmaz!'); }"
 
       - name: yt-dlp binary kur
         working-directory: ./MusicBot-main
@@ -47,16 +106,38 @@ jobs:
           curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
                -o node_modules/youtube-dl-exec/bin/yt-dlp
           chmod +x node_modules/youtube-dl-exec/bin/yt-dlp
+          echo "yt-dlp: $(./node_modules/youtube-dl-exec/bin/yt-dlp --version)"
 
-      - name: Cookies dosyasini olustur
+      - name: "🔍 UDP çıkış testi (kritik)"
+        run: |
+          echo "════════════════════════════════════════════════════"
+          echo "  UDP ÇIKIŞ TESTİ"
+          echo "════════════════════════════════════════════════════"
+          echo "── DNS çözümleme ──"
+          getent hosts discord.com || echo "  discord.com çözümlenemedi"
+          getent hosts discord.gg || echo "  discord.gg çözümlenemedi"
+          echo ""
+          echo "── UDP outbound testi (8.8.8.8:53) ──"
+          if timeout 5 bash -c 'echo test > /dev/udp/8.8.8.8/53' 2>/dev/null; then
+            echo "  ✅ UDP çıkışı ÇALIŞIYOR"
+          else
+            echo "  ❌ UDP çıkışı BLOKLU (GitHub Actions kısıtı)"
+          fi
+          echo ""
+          echo "── Discord voice portları (50000-65535 UDP) ──"
+          echo "  Discord voice sunucuları UDP ile çalışır."
+          echo "  GitHub Actions UDP outbound destekler AMA NAT arkasındadır."
+          echo "════════════════════════════════════════════════════"
+
+      - name: Cookies dosyasını oluştur
         working-directory: ./MusicBot-main
         run: printf '%s\n' "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
 
-      - name: .env olustur
+      - name: .env oluştur
         working-directory: ./MusicBot-main
         env:
-          DISCORD_TOKEN:        ${{ secrets.MUSICBOT_TOKEN }}
-          SPOTIFY_CLIENT_ID:    ${{ secrets.SPOTIFY_CLIENT_ID }}
+          DISCORD_TOKEN:         ${{ secrets.MUSICBOT_TOKEN }}
+          SPOTIFY_CLIENT_ID:     ${{ secrets.SPOTIFY_CLIENT_ID }}
           SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         run: |
           {
@@ -81,17 +162,25 @@ jobs:
             echo "COLOR_QUEUE=#EB459E"
             echo "TOTAL_SHARDS=auto"
             echo "SHARD_RESPAWN=true"
+            echo "DEBUG_VOICE=true"
           } > .env
 
-      - name: Botu calistir
+      - name: "🚀 Botu çalıştır"
         working-directory: ./MusicBot-main
+        env:
+          NODE_OPTIONS: "--dns-result-order=ipv4first"
         run: |
           node index.js &
           BOT_PID=$!
-          echo "Bot PID: $BOT_PID"
+          echo "════════════════════════════════════════════════════"
+          echo "  Bot PID: $BOT_PID"
+          echo "  Başlangıç: $(date -u)"
+          echo "════════════════════════════════════════════════════"
           while true; do
             if ! kill -0 $BOT_PID 2>/dev/null; then
-              echo "$(date -u): Bot kapandi, yeniden baslatiliyor..."
+              echo "════════════════════════════════════════════════════"
+              echo "  $(date -u): Bot kapandı, yeniden başlatılıyor..."
+              echo "════════════════════════════════════════════════════"
               node index.js &
               BOT_PID=$!
             fi
