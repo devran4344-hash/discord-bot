@@ -7,10 +7,8 @@ module.exports = {
         .setDescription('Bot gecikmesini goster'),
 
     async execute(interaction, client) {
-        const sent = await interaction.reply({
-            content: '🌸 Olculuyor...',
-            fetchReply: true
-        });
+        await interaction.reply({ content: '🌸 Olculuyor...' });
+        const sent = await interaction.fetchReply();
 
         const roundtrip = sent.createdTimestamp - interaction.createdTimestamp;
         const ws = client.ws.ping;

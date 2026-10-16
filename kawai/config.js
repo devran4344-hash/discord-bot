@@ -1,4 +1,4 @@
-﻿// Kawai Bot - Ana Konfigurasyon
+// Kawai Bot - Ana Konfigurasyon
 
 module.exports = {
     botName: "Kawai",
@@ -19,11 +19,11 @@ module.exports = {
     },
 
     ai: {
-        nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1",
-        nvidiaChatModel: "meta/llama-3.3-70b-instruct",
-        nvidiaVisionModel: "meta/llama-3.2-11b-vision-instruct",
+        cfBaseUrl: "https://api.cloudflare.com/client/v4/accounts",
+        cfChatModel: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        cfVisionModel: "@cf/meta/llama-3.2-11b-vision-instruct",
         imageModel: "dall-e-3",
-        imageEnabled: true
+        imageEnabled: false
     },
 
     xp: {
