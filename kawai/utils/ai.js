@@ -1,11 +1,6 @@
-﻿// NVIDIA NIM (sohbet + vision) + OpenAI (DALL-E gorsel uretme)
+// OpenAI API (sohbet + vision) + DALL-E (gorsel uretme)
 const OpenAI = require('openai');
 const config = require('../config');
-
-const nvidia = new OpenAI({
-    baseURL: config.ai.nvidiaBaseUrl,
-    apiKey: process.env.KAWAI_NVIDIA_API_KEY
-});
 
 const openai = new OpenAI({
     apiKey: process.env.KAWAI_OPENAI_API_KEY
@@ -24,8 +19,8 @@ function filterBadWords(text) {
 
 // Sohbet
 async function askAI(userMessage, memorySummary) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaChatModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             { role: 'system', content: config.systemPrompt + `\nKullanici Hafizasi: ${memorySummary || 'Yeni oyuncu.'}` },
             { role: 'user', content: userMessage }
@@ -38,8 +33,8 @@ async function askAI(userMessage, memorySummary) {
 
 // Vision (SS analizi)
 async function analyzeScreenshot(imageUrl, userMessage) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaVisionModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             {
                 role: 'system',
@@ -62,8 +57,8 @@ async function analyzeScreenshot(imageUrl, userMessage) {
 
 // Wiki (RSS bilgisi)
 async function askWiki(question) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaChatModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             {
                 role: 'system',
@@ -80,8 +75,8 @@ async function askWiki(question) {
 
 // Taktik onerisi
 async function getTactic(situation) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaChatModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             {
                 role: 'system',
@@ -98,8 +93,8 @@ async function getTactic(situation) {
 
 // Mac analizi
 async function analyzeMatch(stats) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaChatModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             {
                 role: 'system',
@@ -114,10 +109,10 @@ async function analyzeMatch(stats) {
     return filterBadWords(response.choices[0].message.content);
 }
 
-// Internet aramasi (NVIDIA NIM uzerinden - basit cevap)
+// Internet aramasi
 async function webSearch(query) {
-    const response = await nvidia.chat.completions.create({
-        model: config.ai.nvidiaChatModel,
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
         messages: [
             {
                 role: 'system',
