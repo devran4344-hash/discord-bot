@@ -38,8 +38,13 @@ jobs:
           cat > .env <<'EOF'
           DISCORD_TOKEN=${{ secrets.KAWAI_TOKEN }}
           CLIENT_ID=${{ secrets.KAWAI_CLIENT_ID }}
+          KAWAI_NVIDIA_API_KEY=${{ secrets.KAWAI_NVIDIA_API_KEY }}
+          KAWAI_OPENAI_API_KEY=${{ secrets.KAWAI_OPENAI_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          KAWAI_OWNER_IDS=${{ secrets.KAWAI_OWNER_IDS }}
           EOF
           echo ".env olusturuldu."
+          grep -o '^[A-Z_]*=' .env | tr -d '='
 
       # ═══════════════════════════════════════════════════════════
       #  4. SLASH KOMUTLARINI KAYDET
