@@ -1,0 +1,49 @@
+name: Kawai Komut Deploy
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: kawai-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ═══════════════════════════════════════════════════════════
+      #  1. NODE KURULUMU
+      # ═══════════════════════════════════════════════════════════
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ═══════════════════════════════════════════════════════════
+      #  2. BAĞIMLILIKLAR
+      # ═══════════════════════════════════════════════════════════
+      - name: Bagimliliklari kur
+        working-directory: ./kawai
+        run: npm install
+
+      # ═══════════════════════════════════════════════════════════
+      #  3. .env DOSYASI
+      # ═══════════════════════════════════════════════════════════
+      - name: .env olustur
+        working-directory: ./kawai
+        run: |
+          cat > .env <<'EOF'
+          DISCORD_TOKEN=${{ secrets.KAWAI_TOKEN }}
+          CLIENT_ID=${{ secrets.KAWAI_CLIENT_ID }}
+          EOF
+          echo ".env olusturuldu."
+
+      # ═══════════════════════════════════════════════════════════
+      #  4. SLASH KOMUTLARINI KAYDET
+      # ═══════════════════════════════════════════════════════════
+      - name: Slash komutlari kaydet
+        working-directory: ./kawai
+        run: node deploy-commands.js
