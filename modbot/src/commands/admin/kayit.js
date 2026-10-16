@@ -1,7 +1,6 @@
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║                  KAYIT SİSTEMİ — Tam Kapsamlı                      ║
+// ║                  KAYIT SİSTEMİ — Tam Kapsamlı + GÜVENLİK            ║
 // ║  !kayit @üye [isim] [tür]                                          ║
-// ║  Butonlar: İsim Değiştir, Kayıtsız Ver, Kayıt Bilgisi              ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 const {
@@ -9,8 +8,6 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -25,13 +22,40 @@ const {
 } = require('../../utils/database');
 
 // ══════════════════════════════════════════════════════
-//  YARDIMCI: Yetkili mi?
+//  YETKİ KONTROLÜ — SIKILAŞTIRILMIŞ
 // ══════════════════════════════════════════════════════
 function isKayitYetkili(member) {
-  if (!member) return false;
-  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  if (!member) {
+    console.log('[kayit-debug] member NULL');
+    return false;
+  }
+
+  // 1. Sunucu sahibi mi?
+  const isOwner = member.guild?.ownerId === member.id;
+
+  // 2. Administrator izni var mı?
+  let isAdmin = false;
+  try {
+    isAdmin = member.permissions?.has(PermissionFlagsBits.Administrator) === true;
+  } catch (e) {
+    console.log('[kayit-debug] permissions hatası:', e.message);
+  }
+
+  // 3. Config'deki yetkili rollerden birine sahip mi?
   const yetkili = config.kayit?.yetkiliRoller || [];
-  return yetkili.some(r => member.roles.cache.has(r));
+  const userRoles = member.roles?.cache ? Array.from(member.roles.cache.keys()) : [];
+  const matching = Array.isArray(yetkili) ? yetkili.filter(r => userRoles.includes(r)) : [];
+
+  // 4. EN AZ BİR ŞARTI SAĞLAMALI
+  const result = isOwner || isAdmin || matching.length > 0;
+
+  console.log('[kayit-debug] ────────────────────────');
+  console.log('[kayit-debug] user:', member.user?.tag);
+  console.log('[kayit-debug] owner:', isOwner, '| admin:', isAdmin, '| matching:', matching);
+  console.log('[kayit-debug] SONUC:', result ? 'İZİN ✅' : 'RED ❌');
+  console.log('[kayit-debug] ────────────────────────');
+
+  return result;
 }
 
 // ══════════════════════════════════════════════════════
@@ -43,11 +67,11 @@ function buildIsim(hammIsim, sayac) {
     .replace('{isim}', hammIsim)
     .replace('{sayı}', sayac)
     .replace('{sayi}', sayac)
-    .slice(0, 32); // Discord nick limiti
+    .slice(0, 32);
 }
 
 // ══════════════════════════════════════════════════════
-//  YARDIMCI: Güvenilirlik rengi/etiketi
+//  YARDIMCI: Güvenilirlik
 // ══════════════════════════════════════════════════════
 function guvenilirlik(member) {
   const yas = Date.now() - member.user.createdTimestamp;
@@ -59,7 +83,7 @@ function guvenilirlik(member) {
 }
 
 // ══════════════════════════════════════════════════════
-//  YARDIMCI: Kayıt işlemini gerçekleştir
+//  YARDIMCI: Kayıt işlemi
 // ══════════════════════════════════════════════════════
 async function kayitIsle(member, kayitYapan, isim, tur) {
   const cfg    = config.kayit;
@@ -67,12 +91,10 @@ async function kayitIsle(member, kayitYapan, isim, tur) {
   const sayac  = await kayitSayaci(guild.id);
   const format = buildIsim(isim, sayac);
 
-  // Nickname uygula
   if (isim) {
     await member.setNickname(format, `Kayıt: ${kayitYapan.user.tag}`).catch(() => null);
   }
 
-  // Kayıtsız rolünü kaldır
   if (cfg.kayitsizRolId) {
     const kayitsizRol = guild.roles.cache.get(cfg.kayitsizRolId);
     if (kayitsizRol && member.roles.cache.has(cfg.kayitsizRolId)) {
@@ -80,7 +102,6 @@ async function kayitIsle(member, kayitYapan, isim, tur) {
     }
   }
 
-  // Member rollerini ver
   const verilenRoller = [];
   for (const rolId of cfg.memberRoller) {
     const rol = guild.roles.cache.get(rolId);
@@ -90,10 +111,8 @@ async function kayitIsle(member, kayitYapan, isim, tur) {
     }
   }
 
-  // Tür bazlı ek rol varsa (ileride genişletilebilir)
   const turObj = (cfg.turler || []).find(t => t.id === tur) || cfg.turler?.[0] || { id: 'normal', label: 'Normal', emoji: '✅' };
 
-  // Firestore'a kaydet
   const kayit = await kayitEkle(guild.id, member.id, {
     isim:        format,
     tur:         turObj.id,
@@ -107,7 +126,7 @@ async function kayitIsle(member, kayitYapan, isim, tur) {
 }
 
 // ══════════════════════════════════════════════════════
-//  YARDIMCI: Kayıt log embed'i gönder
+//  YARDIMCI: Log gönder
 // ══════════════════════════════════════════════════════
 async function kayitLogGonder(guild, member, kayitYapan, { turObj, verilenRoller, format, sayac }) {
   const cfg = config.kayit;
@@ -138,26 +157,7 @@ async function kayitLogGonder(guild, member, kayitYapan, { turObj, verilenRoller
     .setFooter({ text: `Kayıt #${sayac} • ${guild.name}` })
     .setTimestamp();
 
-  // Log kanalına butonlu mesaj
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`kayit_isim_${member.id}`)
-      .setLabel('İsim Değiştir')
-      .setEmoji('✏️')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`kayit_kayitsiz_${member.id}`)
-      .setLabel('Kayıtsız Ver')
-      .setEmoji('🚫')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(`kayit_bilgi_${member.id}`)
-      .setLabel('Kayıt Bilgisi')
-      .setEmoji('ℹ️')
-      .setStyle(ButtonStyle.Primary),
-  );
-
-  await logKanal.send({ embeds: [embed], components: [row] }).catch(() => null);
+  await logKanal.send({ embeds: [embed] }).catch(() => null);
 }
 
 // ══════════════════════════════════════════════════════
@@ -185,22 +185,63 @@ module.exports = {
       )),
 
   async executeSlash(interaction, client) {
-    if (!isKayitYetkili(interaction.member))
-      return interaction.reply({ embeds: [errorEmbed('Kayıt yetkilisi rolüne ihtiyacın var.')], flags: 64 });
-    const hedef = await interaction.guild.members.fetch(interaction.options.getUser('üye').id).catch(() => null);
+    // ═══ GÜVENLİK 1: Yetki kontrolü ═══
+    if (!isKayitYetkili(interaction.member)) {
+      return interaction.reply({
+        embeds: [errorEmbed('❌ Kayıt yetkilisi değilsin!')],
+        flags: 64,
+      });
+    }
+
+    // ═══ GÜVENLİK 2: Kayıt sistemi açık mı? ═══
+    if (!config.kayit?.enabled) {
+      return interaction.reply({
+        embeds: [errorEmbed('Kayıt sistemi şu an devre dışı.')],
+        flags: 64,
+      });
+    }
+
+    // ═══ GÜVENLİK 3: Self-register engeli ═══
+    const hedefUser = interaction.options.getUser('üye');
+    if (hedefUser.id === interaction.user.id) {
+      return interaction.reply({
+        embeds: [errorEmbed('❌ Kendini kayıt edemezsin! Başka bir yetkiliye başvur.')],
+        flags: 64,
+      });
+    }
+
+    const hedef = await interaction.guild.members.fetch(hedefUser.id).catch(() => null);
     if (!hedef) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
     if (hedef.user.bot) return interaction.reply({ embeds: [errorEmbed('Botları kayıt edemezsin.')], flags: 64 });
+
     const isim = interaction.options.getString('isim').trim();
     const tur  = interaction.options.getString('tür') || 'normal';
+
+    if (!isim) {
+      return interaction.reply({ embeds: [errorEmbed('İsim boş olamaz.')], flags: 64 });
+    }
+
     await interaction.deferReply();
+
     let result;
-    try { result = await kayitIsle(hedef, interaction.member, isim, tur); }
-    catch (err) { return interaction.editReply({ embeds: [errorEmbed(`Hata: \`${err.message}\``)] }); }
-    const { turObj, verilenRoller, format, sayac } = result;
+    try {
+      result = await kayitIsle(hedef, interaction.member, isim, tur);
+    } catch (err) {
+      console.error('[kayit] Hata:', err);
+      return interaction.editReply({ embeds: [errorEmbed(`Hata: \`${err.message}\``)] });
+    }
+
+    const { turObj, format, sayac } = result;
+
     await kayitLogGonder(interaction.guild, hedef, interaction.member, result);
-    await interaction.editReply({ content: `✅ **${hedef.user.tag}** kayıt edildi!\n> İsim: \`${format}\` • Tür: ${turObj.emoji} ${turObj.label} • No: \`#${sayac}\`` });
+
+    await interaction.editReply({
+      content: `✅ **${hedef.user.tag}** kayıt edildi!\n> İsim: \`${format}\` • Tür: ${turObj.emoji} ${turObj.label} • No: \`#${sayac}\``,
+    });
+
     if (config.kayit?.dmAc) {
-      const dmEmbed = new EmbedBuilder().setColor(turObj.renk || config.colors.success)
+      const dmEmbed = new EmbedBuilder()
+        .setColor(turObj.renk || config.colors.success)
         .setTitle(`${turObj.emoji} Kaydın Tamamlandı!`)
         .setDescription(`**${interaction.guild.name}** sunucusuna hoş geldin, ${hedef.user.username}!`)
         .setTimestamp();
@@ -209,30 +250,34 @@ module.exports = {
   },
 
   async execute(message, args, client) {
+    // ═══ GÜVENLİK 1: Yetki ═══
     if (!isKayitYetkili(message.member)) {
-      return message.reply({ embeds: [errorEmbed('Bu komutu kullanmak için **kayıt yetkilisi** olman gerekiyor.')] });
+      return message.reply({ embeds: [errorEmbed('❌ Bu komutu kullanmak için **kayıt yetkilisi** olman gerekiyor.')] });
     }
 
+    // ═══ GÜVENLİK 2: Sistem açık mı? ═══
     if (!config.kayit?.enabled) {
       return message.reply({ embeds: [errorEmbed('Kayıt sistemi şu an devre dışı.')] });
     }
 
-    // !kayit @üye isim [tür]
     const hedef = message.mentions.members?.first();
     if (!hedef) {
-      return message.reply({ embeds: [errorEmbed(`**Kullanım:** \`!kayit @üye <isim> [tür]\`\n\nTürler: ${(config.kayit.turler || []).map(t => `\`${t.id}\``).join(', ')}`)] });
+      return message.reply({ embeds: [errorEmbed(`**Kullanım:** \`!kayit @üye <isim> [tür]\``)] });
+    }
+
+    // ═══ GÜVENLİK 3: Self-register engeli ═══
+    if (hedef.id === message.author.id) {
+      return message.reply({ embeds: [errorEmbed('❌ Kendini kayıt edemezsin!')] });
     }
 
     if (hedef.user.bot) {
       return message.reply({ embeds: [errorEmbed('Botları kayıt edemezsin.')] });
     }
 
-    // İsmi al: mention'dan sonraki tüm argümanlar, son argüman tür olabilir
     const turler = (config.kayit.turler || []).map(t => t.id);
-    let isimArgs = args.slice(1); // args[0] = mention
+    let isimArgs = args.slice(1);
     let tur = 'normal';
 
-    // Son arg tür mü?
     if (isimArgs.length > 1 && turler.includes(isimArgs[isimArgs.length - 1].toLowerCase())) {
       tur = isimArgs.pop().toLowerCase();
     }
@@ -242,142 +287,59 @@ module.exports = {
       return message.reply({ embeds: [errorEmbed(`İsim belirtmedin.\n**Kullanım:** \`!kayit @üye <isim> [tür]\``)] });
     }
 
-    // Zaten kayıtlı mı?
     const mevcutKayit = await kayitGetir(message.guild.id, hedef.id);
-    const g = guvenilirlik(hedef);
 
-    // ── Kayıt işlemini gerçekleştir ──────────────────────────────
     let result;
     try {
       result = await kayitIsle(hedef, message.member, isim, tur);
     } catch (err) {
       console.error('[kayit]', err);
-      return message.reply({ embeds: [errorEmbed(`Kayıt sırasında hata oluştu: \`${err.message}\``)] });
+      return message.reply({ embeds: [errorEmbed(`Kayıt hatası: \`${err.message}\``)] });
     }
 
     const { turObj, verilenRoller, format, sayac } = result;
 
-    // ── Kayıt kanalına bildirim gönder ───────────────────────────
-    const cfg = config.kayit;
-    if (cfg.kanalId) {
-      const kayitKanal = message.guild.channels.cache.get(cfg.kanalId);
-      if (kayitKanal) {
-        const kanalEmbed = new EmbedBuilder()
-          .setColor(turObj.renk || config.colors.success)
-          .setAuthor({
-            name:    `👋 Yeni Bir Kullanıcı Katıldı, ${hedef.user.username}!`,
-            iconURL: message.guild.iconURL({ dynamic: true }),
-          })
-          .setDescription(
-            `**${message.guild.name}** sunucusuna hoş geldin **${format}**!\n` +
-            `Seninle birlikte **${message.guild.memberCount}** kişiyiz.`,
-          )
-          .setThumbnail(hedef.user.displayAvatarURL({ dynamic: true, size: 256 }))
-          .addFields(
-            { name: '🪪 Kullanıcı ID',         value: `\`${hedef.id}\``,                            inline: true },
-            { name: '📅 Hesap Oluşturma Tarihi', value: discordTimestamp(hedef.user.createdAt, 'D'), inline: true },
-            { name: '🔒 Güvenilirlik Durumu',   value: g.label,                                     inline: true },
-          )
-          .setFooter({ text: `${message.guild.name} Kayıt Sistemi` })
-          .setTimestamp();
-
-        const kanalRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`kayit_onay_${hedef.id}`)
-            .setLabel('✅ Kayıt Yapıldı')
-            .setStyle(ButtonStyle.Success)
-            .setDisabled(true),
-        );
-
-        await kayitKanal.send({ embeds: [kanalEmbed], components: [kanalRow] }).catch(() => null);
-      }
-    }
-
-    // ── Log kanalına detaylı kayıt ───────────────────────────────
     await kayitLogGonder(message.guild, hedef, message.member, result);
 
-    // ── Kanala onay mesajı ───────────────────────────────────────
     const onayEmbed = new EmbedBuilder()
       .setColor(turObj.renk || config.colors.success)
-      .setAuthor({
-        name:    `Kayıt Yapıldı!`,
-        iconURL: hedef.user.displayAvatarURL({ dynamic: true }),
-      })
+      .setAuthor({ name: 'Kayıt Yapıldı!', iconURL: hedef.user.displayAvatarURL({ dynamic: true }) })
       .setThumbnail(hedef.user.displayAvatarURL({ dynamic: true, size: 256 }))
       .addFields(
-        { name: '👤 Kayıt Edilen',  value: `<@${hedef.id}>`,                                    inline: true },
-        { name: '🛡️ Kayıt Eden',    value: `<@${message.member.id}>`,                           inline: true },
+        { name: '👤 Kayıt Edilen',   value: `<@${hedef.id}>`,                                    inline: true },
+        { name: '🛡️ Kayıt Eden',     value: `<@${message.member.id}>`,                           inline: true },
         { name: '🏷️ Verilen Roller', value: verilenRoller.length ? verilenRoller.map(r => `<@&${r}>`).join(' ') : '—', inline: true },
-        { name: '📝 Yeni İsim',      value: format ? `\`${format}\`` : '—',                     inline: true },
-        { name: '🎭 Kayıt Türü',     value: `${turObj.emoji} ${turObj.label}`,                  inline: true },
-        { name: '🔢 Kayıt Sayısı',   value: `\`#${sayac}\``,                                    inline: true },
+        { name: '📝 Yeni İsim',       value: format ? `\`${format}\`` : '—',                     inline: true },
+        { name: '🎭 Kayıt Türü',      value: `${turObj.emoji} ${turObj.label}`,                  inline: true },
+        { name: '🔢 Kayıt No',        value: `\`#${sayac}\``,                                    inline: true },
       )
-      .setFooter({ text: `${message.guild.name} • Normal kayıt sayın: ${sayac}` })
+      .setFooter({ text: `${message.guild.name}` })
       .setTimestamp();
 
-    const onayRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`kayit_isim_${hedef.id}`)
-        .setLabel('İsim Değiştir')
-        .setEmoji('✏️')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`kayit_kayitsiz_${hedef.id}`)
-        .setLabel('Kayıtsız Ver')
-        .setEmoji('🚫')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(`kayit_bilgi_${hedef.id}`)
-        .setLabel('Kayıt Bilgisi')
-        .setEmoji('ℹ️')
-        .setStyle(ButtonStyle.Primary),
-    );
+    await message.reply({ embeds: [onayEmbed] });
 
-    await message.reply({ embeds: [onayEmbed], components: [onayRow] });
-
-    // ── DM ───────────────────────────────────────────────────────
-    if (cfg.dmAc) {
+    if (config.kayit?.dmAc) {
       const dmEmbed = new EmbedBuilder()
         .setColor(turObj.renk || config.colors.success)
         .setAuthor({ name: message.guild.name, iconURL: message.guild.iconURL({ dynamic: true }) })
         .setTitle(`${turObj.emoji} Kaydın Tamamlandı!`)
-        .setDescription(
-          (cfg.dmMesaj || '**{server}** sunucusuna hoş geldin, {user}! Kaydın başarıyla tamamlandı.')
-            .replace('{user}',   hedef.user.username)
-            .replace('{server}', message.guild.name)
-            .replace('{isim}',   format),
-        )
-        .addFields(
-          { name: '📝 Verilen İsim', value: format ? `\`${format}\`` : '—',                        inline: true },
-          { name: '🎭 Kayıt Türü',   value: `${turObj.emoji} ${turObj.label}`,                     inline: true },
-          { name: '🏷️ Roller',       value: verilenRoller.length ? verilenRoller.map(r => `<@&${r}>`).join(' ') : '—', inline: true },
-        )
-        .setFooter({ text: message.guild.name })
+        .setDescription(`**${message.guild.name}** sunucusuna hoş geldin, ${hedef.user.username}!`)
         .setTimestamp();
       await hedef.send({ embeds: [dmEmbed] }).catch(() => null);
     }
 
-    // Zaten kayıtlıydı uyarısı
     if (mevcutKayit) {
-      const uyariRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`kayit_bilgi_${hedef.id}`)
-          .setLabel('Önceki Kayıt Bilgisi')
-          .setEmoji('📋')
-          .setStyle(ButtonStyle.Secondary),
-      );
       await message.channel.send({
         embeds: [new EmbedBuilder()
           .setColor(config.colors.warning)
           .setDescription(`⚠️ <@${hedef.id}> daha önce kayıt edilmişti. Kayıt yenilendi.`)
           .setTimestamp()],
-        components: [uyariRow],
       }).catch(() => null);
     }
   },
 
   // ══════════════════════════════════════════════════════
-  //  BUTON HANDLER — interactionCreate'ten çağrılır
+  //  BUTON / MODAL HANDLER
   // ══════════════════════════════════════════════════════
   async handleInteraction(interaction, client) {
     const id = interaction.customId;
@@ -444,10 +406,7 @@ module.exports = {
           { name: '📝 Kayıtlı İsim',  value: kayit.isim ? `\`${kayit.isim}\`` : '—',                 inline: true },
           { name: '🎭 Kayıt Türü',    value: `${turObj.emoji} ${turObj.label}`,                       inline: true },
           { name: '🛡️ Kayıt Eden',    value: `<@${kayit.kaydedenId}> \`(${kayit.kaydedenTag})\``,    inline: true },
-          { name: '📅 Kayıt Tarihi',  value: discordTimestamp(new Date(kayit.kayitAt), 'F'),           inline: true },
           { name: '🔢 Kayıt No',      value: `\`#${kayit.kayitSayisi}\``,                             inline: true },
-          { name: '🏷️ Verilen Roller', value: kayit.verilen?.length ? kayit.verilen.map(r => `<@&${r}>`).join(' ') : '—', inline: true },
-          { name: '🚫 Kayıtsız',      value: kayit.kayitsiz ? `✅ Evet (${discordTimestamp(new Date(kayit.kayitsizAt || 0), 'R')})` : '❌ Hayır', inline: true },
           ...(g ? [{ name: '🔒 Güvenilirlik', value: `${g.label} (${g.gun} gün)`, inline: true }] : []),
         )
         .setFooter({ text: `ID: ${userId}` })
@@ -456,7 +415,7 @@ module.exports = {
       return interaction.reply({ embeds: [embed], flags: 64 });
     }
 
-    // Modal: kayit_isim_modal_<userId>  — interactionCreate'ten yönlendirilir
+    // Modal: kayit_isim_modal_<userId>
     if (typeof interaction.isModalSubmit === 'function' && interaction.isModalSubmit() && id.startsWith('kayit_isim_modal_')) {
       if (!isKayitYetkili(interaction.member)) {
         return interaction.reply({ embeds: [errorEmbed('Bu işlem için yetkin yok.')], flags: 64 });
@@ -483,13 +442,12 @@ module.exports = {
 };
 
 // ══════════════════════════════════════════════════════
-//  İÇ YARDIMCI: Kayıtsız ver (kayitsiz.js de kullanır)
+//  İÇ YARDIMCI: Kayıtsız ver
 // ══════════════════════════════════════════════════════
 async function _kayitsizVer(interaction, hedef, yetkili) {
   const cfg   = config.kayit;
   const guild = interaction.guild;
 
-  // Member rollerini kaldır
   for (const rolId of cfg.memberRoller) {
     const rol = guild.roles.cache.get(rolId);
     if (rol && hedef.roles.cache.has(rolId)) {
@@ -497,7 +455,6 @@ async function _kayitsizVer(interaction, hedef, yetkili) {
     }
   }
 
-  // Kayıtsız rolünü ver
   if (cfg.kayitsizRolId) {
     const kayitsizRol = guild.roles.cache.get(cfg.kayitsizRolId);
     if (kayitsizRol && !hedef.roles.cache.has(cfg.kayitsizRolId)) {
@@ -521,7 +478,6 @@ async function _kayitsizVer(interaction, hedef, yetkili) {
 
   await interaction.reply({ embeds: [embed], flags: 64 });
 
-  // Log
   await sendLog(guild, 'modLog', new EmbedBuilder()
     .setColor(config.colors.error)
     .setTitle('🚫 Kayıtsız Verildi')
