@@ -20,8 +20,8 @@ module.exports = {
 
     ai: {
         nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1",
-        nvidiaChatModel: "meta/llama-3.3-70b-instruct",
-        nvidiaVisionModel: "meta/llama-3.2-11b-vision-instruct",
+        nvidiaChatModel: "meta/llama-4-maverick-17b-128e-instruct",
+        nvidiaVisionModel: "meta/llama-4-maverick-17b-128e-instruct",
         imageModel: "dall-e-3",
         imageEnabled: true
     },
