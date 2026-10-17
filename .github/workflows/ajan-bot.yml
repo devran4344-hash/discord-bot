@@ -1,15 +1,15 @@
-﻿name: OwO Bot
+﻿name: Ajan Bot
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  run-ajan-bot:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./owo-botu
+        working-directory: ./ajan-botu
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
@@ -19,6 +19,5 @@ jobs:
         run: npm install
       - name: Start Bot
         env:
-          OWO_TOKEN: ${{ secrets.OWO_TOKEN }}
-          OWNER_ID: ${{ secrets.OWNER_ID }}
+          AJAN_TOKEN: ${{ secrets.AJAN_TOKEN }}
         run: node index.js
