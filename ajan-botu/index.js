@@ -1,21 +1,21 @@
-require('dotenv').config();
+ï»¿require('dotenv').config();
 const { 
     Client, GatewayIntentBits, SlashCommandBuilder, EmbedBuilder, 
     ActionRowBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder 
 } = require('discord.js');
 const admin = require('firebase-admin');
 
-// --- FIREBASE BAÐLANTISI ---
+// --- FIREBASE BAÄžLANTISI ---
 let db;
 try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
         const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8'));
         admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
         db = admin.firestore();
-        console.log("[SÝSTEM] Firebase baðlantýsý baþarýlý!");
+        console.log("[SÄ°STEM] Firebase baÄŸlantÄ±sÄ± baÅŸarÄ±lÄ±!");
     }
 } catch (error) {
-    console.error("[HATA] Firebase baðlantý hatasý:", error);
+    console.error("[HATA] Firebase baÄŸlantÄ± hatasÄ±:", error);
 }
 
 const client = new Client({ 
@@ -48,13 +48,13 @@ async function saveUser(userId, userData) {
 function getRank(ap) {
     if (ap >= 50) return { name: "?? Efsanevi Ajan", color: "#f1c40f" };
     if (ap >= 30) return { name: "?? Gizli Kaptan", color: "#e67e22" };
-    if (ap >= 15) return { name: "? Gölge Forvet", color: "#9b59b6" };
-    if (ap >= 5) return { name: "?? Çaylak Ajan", color: "#3498db" };
-    return { name: "Öðrenci", color: "#95a5a6" };
+    if (ap >= 15) return { name: "? GÃ¶lge Forvet", color: "#9b59b6" };
+    if (ap >= 5) return { name: "?? Ã‡aylak Ajan", color: "#3498db" };
+    return { name: "Ã–ÄŸrenci", color: "#95a5a6" };
 }
 
 function getProgressBar(ap) {
-    if (ap >= 50) return "MAX SEVÝYE ??";
+    if (ap >= 50) return "MAX SEVÄ°YE ??";
     let current = 0, next = 5;
     if (ap >= 30) { current = 30; next = 50; }
     else if (ap >= 15) { current = 15; next = 30; }
@@ -66,44 +66,44 @@ function getProgressBar(ap) {
     return `${bar} (**${ap}** / ${next} AP)`;
 }
 
-// --- YENÝLENMÝÞ VE OP MARKET ---
+// --- YENÄ°LENMÄ°Åž VE OP MARKET ---
 const marketItems = {
-    'bedava_kutu': { name: '?? Bedava Þans Kutusu', price: 0, desc: 'Ýçinden 1-5 arasý AP çýkabilir! (Bedava)', needsTarget: false },
-    'kraliyet_muhru': { name: '?? Kraliyet Mührü', price: 100, desc: 'Hedefin TÜM AP\'sini SIFIRLAR! (Çok OP)', needsTarget: true },
-    'ap_cal': { name: '?? AP Çal', price: 25, desc: 'Hedefin kasasýndan 3 AP çalýp sana ekler.', needsTarget: true },
-    'bomba_pasla': { name: '?? Bomba Pasla', price: 15, desc: 'Hedefe bomba atarsýn, 30 sn içinde paslamalý.', needsTarget: true },
-    'ifsa_et': { name: '????>? Ýfþa Et', price: 20, desc: 'Birinin eski mesajýný anonim atarsýn.', needsTarget: true },
-    'gorev_kesif': { name: '????>? Görev Keþif', price: 15, desc: 'Hedefin aktif görevini herkese ifþa eder!', needsTarget: true },
-    'zorla_etiket': { name: '?? Zorla Etiket', price: 10, desc: 'Hedef, bir sonraki mesajýnda seni etiketlemek zorunda.', needsTarget: true },
-    'sahte_hapis': { name: '?? Sahte Hapis', price: 12, desc: 'Hedefi 1 dakikalýðýna hapse týkar (Eðlence amaçlý).', needsTarget: true },
+    'bedava_kutu': { name: '?? Bedava Åžans Kutusu', price: 0, desc: 'Ä°Ã§inden 1-5 arasÄ± AP Ã§Ä±kabilir! (Bedava)', needsTarget: false },
+    'kraliyet_muhru': { name: '?? Kraliyet MÃ¼hrÃ¼', price: 100, desc: 'Hedefin TÃœM AP\'sini SIFIRLAR! (Ã‡ok OP)', needsTarget: true },
+    'ap_cal': { name: '?? AP Ã‡al', price: 25, desc: 'Hedefin kasasÄ±ndan 3 AP Ã§alÄ±p sana ekler.', needsTarget: true },
+    'bomba_pasla': { name: '?? Bomba Pasla', price: 15, desc: 'Hedefe bomba atarsÄ±n, 30 sn iÃ§inde paslamalÄ±.', needsTarget: true },
+    'ifsa_et': { name: '????>? Ä°fÅŸa Et', price: 20, desc: 'Birinin eski mesajÄ±nÄ± anonim atarsÄ±n.', needsTarget: true },
+    'gorev_kesif': { name: '????>? GÃ¶rev KeÅŸif', price: 15, desc: 'Hedefin aktif gÃ¶revini herkese ifÅŸa eder!', needsTarget: true },
+    'zorla_etiket': { name: '?? Zorla Etiket', price: 10, desc: 'Hedef, bir sonraki mesajÄ±nda seni etiketlemek zorunda.', needsTarget: true },
+    'sahte_hapis': { name: '?? Sahte Hapis', price: 12, desc: 'Hedefi 1 dakikalÄ±ÄŸÄ±na hapse tÄ±kar (EÄŸlence amaÃ§lÄ±).', needsTarget: true },
     'tokata_at': { name: '?? Tokat At', price: 5, desc: 'Hedefe komik bir tokat GIF\'i atar.', needsTarget: true },
-    'ters_psikoloji': { name: '?? Ters Psikoloji', price: 15, desc: 'Hedef sana cevap verirse +3 AP kazanýrsýn.', needsTarget: true },
-    'hizlandirici': { name: '?? Hýzlandýrýcý', price: 8, desc: 'Sonraki görevden +2 bonus AP kazanýrsýn.', needsTarget: false },
-    'kalkan': { name: '??? Kalkan', price: 20, desc: 'Bir sonraki baþarýsýz görev cezasýndan muaf olursun.', needsTarget: false }
+    'ters_psikoloji': { name: '?? Ters Psikoloji', price: 15, desc: 'Hedef sana cevap verirse +3 AP kazanÄ±rsÄ±n.', needsTarget: true },
+    'hizlandirici': { name: '?? HÄ±zlandÄ±rÄ±cÄ±', price: 8, desc: 'Sonraki gÃ¶revden +2 bonus AP kazanÄ±rsÄ±n.', needsTarget: false },
+    'kalkan': { name: '??? Kalkan', price: 20, desc: 'Bir sonraki baÅŸarÄ±sÄ±z gÃ¶rev cezasÄ±ndan muaf olursun.', needsTarget: false }
 };
 
-// --- DENGELENMÝÞ GÖREV ÜRETÝCÝ (Zor görevler kaldýrýldý) ---
-const randomWords = ['karpuz', 'elma', 'futbol', 'gol', 'hakem', 'ofsayt', 'kaleci', 'penaltý'];
+// --- DENGELENMÄ°Åž GÃ–REV ÃœRETÄ°CÄ° (Zor gÃ¶revler kaldÄ±rÄ±ldÄ±) ---
+const randomWords = ['karpuz', 'elma', 'futbol', 'gol', 'hakem', 'ofsayt', 'kaleci', 'penaltÄ±'];
 const randomEmojis = ['?', '??', '??', '??', '??', '??', '??', '??'];
-const randomQuestions = ['nasýlsýn?', 'ne yapýyorsun?', 'maçý izledin mi?'];
+const randomQuestions = ['nasÄ±lsÄ±n?', 'ne yapÄ±yorsun?', 'maÃ§Ä± izledin mi?'];
 function generateMission() {
     const types = ['random_word', 'tag_2', 'random_question', 'random_reaction', 'emoji_only', 'caps'];
     const type = types[Math.floor(Math.random() * types.length)];
     let mission = { type: type, expireAt: Date.now() + 5 * 60 * 1000, progress: 0 };
     if (type === 'random_word') {
         const word = randomWords[Math.floor(Math.random() * randomWords.length)];
-        mission.text = `Þu kelimeyi birine söylet: **"${word}"**`; mission.extra = word;
+        mission.text = `Åžu kelimeyi birine sÃ¶ylet: **"${word}"**`; mission.extra = word;
     } else if (type === 'tag_2') {
-        mission.text = `5 dakika içinde 2 farklý kiþiye seni etiketlet.`; mission.extra = 2; // 3'ten 2'ye düþürüldü
+        mission.text = `5 dakika iÃ§inde 2 farklÄ± kiÅŸiye seni etiketlet.`; mission.extra = 2; // 3'ten 2'ye dÃ¼ÅŸÃ¼rÃ¼ldÃ¼
     } else if (type === 'random_question') {
         mission.text = `Birine soru sordur.`; mission.extra = '?';
     } else if (type === 'random_reaction') {
         const emoji = randomEmojis[Math.floor(Math.random() * randomEmojis.length)];
-        mission.text = `Attýðýn bir mesaja ${emoji} tepkisi aldýr.`; mission.extra = emoji;
+        mission.text = `AttÄ±ÄŸÄ±n bir mesaja ${emoji} tepkisi aldÄ±r.`; mission.extra = emoji;
     } else if (type === 'emoji_only') {
-        mission.text = `Birinin sadece emojilerden oluþan bir mesaj atmasýný saðla.`; mission.extra = null;
+        mission.text = `Birinin sadece emojilerden oluÅŸan bir mesaj atmasÄ±nÄ± saÄŸla.`; mission.extra = null;
     } else if (type === 'caps') {
-        mission.text = `BÜYÜK HARFLERLE 2 mesaj at.`; mission.extra = 2; // 3'ten 2'ye düþürüldü
+        mission.text = `BÃœYÃœK HARFLERLE 2 mesaj at.`; mission.extra = 2; // 3'ten 2'ye dÃ¼ÅŸÃ¼rÃ¼ldÃ¼
     }
     return mission;
 }
@@ -111,11 +111,11 @@ function generateMission() {
 client.once('clientReady', async () => {
     console.log(`[AJAN BOT] ${client.user.tag} aktif!`);
     const commands = [
-        new SlashCommandBuilder().setName('gorev-al').setDescription('Gizli bir görev alýrsýn.'),
-        new SlashCommandBuilder().setName('gorev-iptal').setDescription('Aktif görevini iptal edersin.'),
-        new SlashCommandBuilder().setName('profil').setDescription('Ajan profilinizi gösterir.'),
-        new SlashCommandBuilder().setName('liderlik').setDescription('En iyi ajanlarý listeler.'),
-        new SlashCommandBuilder().setName('market').setDescription('Ajan Marketini açar.'),
+        new SlashCommandBuilder().setName('gorev-al').setDescription('Gizli bir gÃ¶rev alÄ±rsÄ±n.'),
+        new SlashCommandBuilder().setName('gorev-iptal').setDescription('Aktif gÃ¶revini iptal edersin.'),
+        new SlashCommandBuilder().setName('profil').setDescription('Ajan profilinizi gÃ¶sterir.'),
+        new SlashCommandBuilder().setName('liderlik').setDescription('En iyi ajanlarÄ± listeler.'),
+        new SlashCommandBuilder().setName('market').setDescription('Ajan Marketini aÃ§ar.'),
         // OWNER KOMUTLARI
         new SlashCommandBuilder()
             .setName('ap-ver')
@@ -140,49 +140,54 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         const { commandName } = interaction;
         
-        // OWNER KONTROLÜ
+        // OWNER KONTROLÃœ
         const ownerId = process.env.OWNER_ID;
         if (['ap-ver', 'ap-kaldir'].includes(commandName) && userId !== ownerId) {
-            return interaction.reply({ content: '? Bu komutu sadece botun sahibi kullanabilir!', ephemeral: true });
+            return interaction.reply({ content: '? Bu komutu sadece botun sahibi kullanabilir!', flags: 64 });
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        try {
+                    await interaction.deferReply({ flags: 64 });
+                } catch (e) {
+                    if (e.code === 10062) return; // SÃ¼resi geÃ§miÅŸ etkileÅŸimleri yoksay
+                    throw e;
+                }
 
         if (commandName === 'gorev-al') {
-            if (missions.has(userId)) return interaction.editReply({ content: '? Zaten aktif bir görevin var!' });
+            if (missions.has(userId)) return interaction.editReply({ content: '? Zaten aktif bir gÃ¶revin var!' });
             const mission = generateMission();
             missions.set(userId, mission);
 
-            const dmEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('????>? GÝZLÝ DOSYA')
-                .setDescription(`Ajan **${interaction.user.username}**, görevi tamamla.\n\n**HEDEF:**\n\`\`\`\n${mission.text}\n\`\`\``)
-                .addFields({ name: '?? Süre', value: '`5 Dakika`', inline: true }, { name: '?? Ödül', value: '`1 veya 2 AP (Þansa Baðlý)`', inline: true });
+            const dmEmbed = new EmbedBuilder().setColor('#e74c3c').setTitle('????>? GÄ°ZLÄ° DOSYA')
+                .setDescription(`Ajan **${interaction.user.username}**, gÃ¶revi tamamla.\n\n**HEDEF:**\n\`\`\`\n${mission.text}\n\`\`\``)
+                .addFields({ name: '?? SÃ¼re', value: '`5 Dakika`', inline: true }, { name: '?? Ã–dÃ¼l', value: '`1 veya 2 AP (Åžansa BaÄŸlÄ±)`', inline: true });
             try {
                 await interaction.user.send({ embeds: [dmEmbed] });
-                interaction.editReply({ content: '?? Görev DM\'den gönderildi.' });
+                interaction.editReply({ content: '?? GÃ¶rev DM\'den gÃ¶nderildi.' });
             } catch (e) {
-                interaction.editReply({ content: '? DM kutun kapalý!' });
+                interaction.editReply({ content: '? DM kutun kapalÄ±!' });
                 missions.delete(userId);
             }
         }
 
         if (commandName === 'gorev-iptal') {
-            if (missions.has(userId)) { missions.delete(userId); interaction.editReply({ content: '??? Görev iptal edildi.' }); }
-            else { interaction.editReply({ content: 'Zaten aktif görevin yok.' }); }
+            if (missions.has(userId)) { missions.delete(userId); interaction.editReply({ content: '??? GÃ¶rev iptal edildi.' }); }
+            else { interaction.editReply({ content: 'Zaten aktif gÃ¶revin yok.' }); }
         }
 
         if (commandName === 'profil') {
             const rank = getRank(user.ap);
             const embed = new EmbedBuilder().setColor(rank.color).setTitle(`????>? ${interaction.user.username}`)
                 .addFields(
-                    { name: '?? Rütbe', value: `\`\`\`${rank.name}\`\`\``, inline: false },
-                    { name: '? Ajan Puaný', value: `**${user.ap} AP**`, inline: true },
-                    { name: '?? Ýlerleme', value: getProgressBar(user.ap), inline: false }
+                    { name: '?? RÃ¼tbe', value: `\`\`\`${rank.name}\`\`\``, inline: false },
+                    { name: '? Ajan PuanÄ±', value: `**${user.ap} AP**`, inline: true },
+                    { name: '?? Ä°lerleme', value: getProgressBar(user.ap), inline: false }
                 );
             interaction.editReply({ embeds: [embed] });
         }
 
         if (commandName === 'liderlik') {
-            let desc = 'Henüz kimse görev yapmadý.';
+            let desc = 'HenÃ¼z kimse gÃ¶rev yapmadÄ±.';
             if (db) {
                 const snapshot = await db.collection('ajanlar').orderBy('ap', 'desc').limit(10).get();
                 if (!snapshot.empty) {
@@ -190,24 +195,24 @@ client.on('interactionCreate', async (interaction) => {
                     desc = sorted.map((d, i) => `${i === 0 ? '??' : i === 1 ? '??' : i === 2 ? '??' : '??'} <@${d.id}> | **${d.ap} AP**`).join('\n');
                 }
             }
-            interaction.editReply({ embeds: [new EmbedBuilder().setColor('#f1c40f').setTitle('?? EN ÝYÝ AJANLAR').setDescription(desc)] });
+            interaction.editReply({ embeds: [new EmbedBuilder().setColor('#f1c40f').setTitle('?? EN Ä°YÄ° AJANLAR').setDescription(desc)] });
         }
 
         if (commandName === 'market') {
             const options = Object.entries(marketItems).map(([id, item]) => ({ label: item.name, description: `${item.price} AP - ${item.desc}`, value: id }));
-            const select = new StringSelectMenuBuilder().setCustomId('market_buy').setPlaceholder('Satýn almak istediðin eþyayý seç...').addOptions(options);
-            const embed = new EmbedBuilder().setColor('#2ecc71').setTitle('?? AJAN MARKETÝ').setDescription(`?? **Bakiyen:** \`${user.ap} AP\``);
+            const select = new StringSelectMenuBuilder().setCustomId('market_buy').setPlaceholder('SatÄ±n almak istediÄŸin eÅŸyayÄ± seÃ§...').addOptions(options);
+            const embed = new EmbedBuilder().setColor('#2ecc71').setTitle('?? AJAN MARKETÄ°').setDescription(`?? **Bakiyen:** \`${user.ap} AP\``);
             interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
         }
 
-        // --- OWNER KOMUTLARI ÝÞLEMLERÝ ---
+        // --- OWNER KOMUTLARI Ä°ÅžLEMLERÄ° ---
         if (commandName === 'ap-ver') {
             const target = interaction.options.getUser('kullanici');
             const amount = interaction.options.getInteger('miktar');
             const targetData = await getUser(target.id);
             targetData.ap = (targetData.ap || 0) + amount;
             await saveUser(target.id, targetData);
-            interaction.editReply({ content: `? **${target.username}** adlý kiþiye **${amount} AP** verildi.` });
+            interaction.editReply({ content: `? **${target.username}** adlÄ± kiÅŸiye **${amount} AP** verildi.` });
         }
 
         if (commandName === 'ap-kaldir') {
@@ -216,17 +221,17 @@ client.on('interactionCreate', async (interaction) => {
             const targetData = await getUser(target.id);
             targetData.ap = Math.max(0, (targetData.ap || 0) - amount);
             await saveUser(target.id, targetData);
-            interaction.editReply({ content: `? **${target.username}** adlý kiþiden **${amount} AP** silindi.` });
+            interaction.editReply({ content: `? **${target.username}** adlÄ± kiÅŸiden **${amount} AP** silindi.` });
         }
     }
 
-    // --- MARKETTEN EÞYA SEÇÝMÝ ---
+    // --- MARKETTEN EÅžYA SEÃ‡Ä°MÄ° ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'market_buy') {
         await interaction.deferUpdate();
         const itemId = interaction.values[0]; 
         const item = marketItems[itemId];
         
-        if (user.ap < item.price) return interaction.followUp({ content: `? Yetersiz AP!`, ephemeral: true });
+        if (user.ap < item.price) return interaction.followUp({ content: `? Yetersiz AP!`, flags: 64 });
         
         user.ap -= item.price; 
         await saveUser(userId, user);
@@ -236,66 +241,66 @@ client.on('interactionCreate', async (interaction) => {
                 .setCustomId(`target_${itemId}`)
                 .setPlaceholder(`Kime ${item.name} kullanmak istiyorsun?`);
             return interaction.followUp({ 
-                content: `? **${item.name}** satýn alýndý! Þimdi hedefini seç:`, 
+                content: `? **${item.name}** satÄ±n alÄ±ndÄ±! Åžimdi hedefini seÃ§:`, 
                 components: [new ActionRowBuilder().addComponents(userSelect)],
-                ephemeral: true 
+                flags: 64 
             });
         }
 
-        let effectMsg = `? **${item.name}** satýn alýndý ve kullanýldý!`;
+        let effectMsg = `? **${item.name}** satÄ±n alÄ±ndÄ± ve kullanÄ±ldÄ±!`;
         
         // ANLIK KULLANILANLAR
         if (itemId === 'bedava_kutu') {
             const kazanc = Math.floor(Math.random() * 5) + 1;
             user.ap += kazanc;
             await saveUser(userId, user);
-            effectMsg += `\n?? Kutudan **${kazanc} AP** çýktý!`;
+            effectMsg += `\n?? Kutudan **${kazanc} AP** Ã§Ä±ktÄ±!`;
         }
         if (itemId === 'hizlandirici') {
             user.buff = (user.buff || 0) + 2;
             await saveUser(userId, user);
-            effectMsg += `\nSonraki görevinden **+2 bonus AP** kazanacaksýn!`;
+            effectMsg += `\nSonraki gÃ¶revinden **+2 bonus AP** kazanacaksÄ±n!`;
         }
         if (itemId === 'kalkan') {
             user.shield = true;
             await saveUser(userId, user);
-            effectMsg += `\nKalkan aktif edildi! Baþarýsýz görevden etkilenmeyeceksin.`;
+            effectMsg += `\nKalkan aktif edildi! BaÅŸarÄ±sÄ±z gÃ¶revden etkilenmeyeceksin.`;
         }
         if (itemId === 'gozdagi') {
-            interaction.channel.send(`?? **GÝZLÝ MESAJ:** Aranýzda bir hain var... Kimseye güvenmeyin. Bir sonraki hedef siz olabilirsiniz.`);
+            interaction.channel.send(`?? **GÄ°ZLÄ° MESAJ:** AranÄ±zda bir hain var... Kimseye gÃ¼venmeyin. Bir sonraki hedef siz olabilirsiniz.`);
         }
 
-        return interaction.followUp({ content: effectMsg, ephemeral: true });
+        return interaction.followUp({ content: effectMsg, flags: 64 });
     }
 
-    // --- HEDEF SEÇÝLDÝKTEN SONRA ---
+    // --- HEDEF SEÃ‡Ä°LDÄ°KTEN SONRA ---
     if (interaction.isUserSelectMenu() && interaction.customId.startsWith('target_')) {
         await interaction.deferUpdate();
         const itemId = interaction.customId.replace('target_', '');
         const targetUser = interaction.users.first();
         
-        if (targetUser.id === userId) return interaction.followUp({ content: '? Kendine eþya kullanamazsýn!', ephemeral: true });
+        if (targetUser.id === userId) return interaction.followUp({ content: '? Kendine eÅŸya kullanamazsÄ±n!', flags: 64 });
 
         const item = marketItems[itemId];
         let resultMsg = '';
 
-        // --- OP EÞYALAR VE DÝÐERLERÝ ---
+        // --- OP EÅžYALAR VE DÄ°ÄžERLERÄ° ---
         if (itemId === 'kraliyet_muhru') {
             const targetData = await getUser(targetUser.id);
             const stolenAp = targetData.ap || 0;
             targetData.ap = 0;
             await saveUser(targetUser.id, targetData);
-            interaction.channel.send(`?? **KRALÝYET MÜHRÜ KULLANILDI!**\nAjan ${interaction.user}, ${targetUser}'in tüm Ajan Puanlarýný (${stolenAp} AP) sýfýrladý! Sýfýrdan baþlýyorsun ${targetUser}...`);
-            resultMsg = `${targetUser.username} adlý kiþinin TÜM AP'sini sýfýrladýn!`;
+            interaction.channel.send(`?? **KRALÄ°YET MÃœHRÃœ KULLANILDI!**\nAjan ${interaction.user}, ${targetUser}'in tÃ¼m Ajan PuanlarÄ±nÄ± (${stolenAp} AP) sÄ±fÄ±rladÄ±! SÄ±fÄ±rdan baÅŸlÄ±yorsun ${targetUser}...`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸinin TÃœM AP'sini sÄ±fÄ±rladÄ±n!`;
         }
 
         if (itemId === 'gorev_kesif') {
             const targetMission = missions.get(targetUser.id);
             if (targetMission) {
-                interaction.channel.send(`????>? **GÖREV ÝFÞA EDÝLDÝ!**\nAjan ${interaction.user}, ${targetUser} adlý kiþinin gizli görevini buldu!\n\n**Görevi:** \`${targetMission.text}\`\n*Þimdi bu görevi yapmasýný engelleyin!*`);
-                resultMsg = `${targetUser.username} adlý kiþinin görevini ifþa ettin!`;
+                interaction.channel.send(`????>? **GÃ–REV Ä°FÅžA EDÄ°LDÄ°!**\nAjan ${interaction.user}, ${targetUser} adlÄ± kiÅŸinin gizli gÃ¶revini buldu!\n\n**GÃ¶revi:** \`${targetMission.text}\`\n*Åžimdi bu gÃ¶revi yapmasÄ±nÄ± engelleyin!*`);
+                resultMsg = `${targetUser.username} adlÄ± kiÅŸinin gÃ¶revini ifÅŸa ettin!`;
             } else {
-                resultMsg = `${targetUser.username} adlý kiþinin aktif bir görevi yok.`;
+                resultMsg = `${targetUser.username} adlÄ± kiÅŸinin aktif bir gÃ¶revi yok.`;
             }
         }
 
@@ -308,20 +313,20 @@ client.on('interactionCreate', async (interaction) => {
                 user.ap += stolenAmount;
                 await saveUser(targetUser.id, targetData);
                 await saveUser(userId, user);
-                interaction.channel.send(`?? **SOYGUN!**\nAjan ${interaction.user}, ${targetUser} adlý kiþinin kasasýndan **${stolenAmount} AP** çaldý!`);
-                resultMsg = `${targetUser.username} adlý kiþiden ${stolenAmount} AP çaldýn!`;
+                interaction.channel.send(`?? **SOYGUN!**\nAjan ${interaction.user}, ${targetUser} adlÄ± kiÅŸinin kasasÄ±ndan **${stolenAmount} AP** Ã§aldÄ±!`);
+                resultMsg = `${targetUser.username} adlÄ± kiÅŸiden ${stolenAmount} AP Ã§aldÄ±n!`;
             } else {
-                resultMsg = `${targetUser.username} adlý kiþinin çalacak AP'si yok.`;
+                resultMsg = `${targetUser.username} adlÄ± kiÅŸinin Ã§alacak AP'si yok.`;
             }
         }
 
         if (itemId === 'bomba_pasla') {
             activeBombs.set(targetUser.id, { sender: userId, timeout: setTimeout(() => {
-                interaction.channel.send(`?? **BOMBA PATLADI!**\n${targetUser} bombayý kimseye paslayamadý ve havaya uçtu!`);
+                interaction.channel.send(`?? **BOMBA PATLADI!**\n${targetUser} bombayÄ± kimseye paslayamadÄ± ve havaya uÃ§tu!`);
                 activeBombs.delete(targetUser.id);
             }, 30000) });
-            interaction.channel.send(`?? **BOMBA ATILDI!**\n${targetUser}'e bomba atýldý! 30 saniye içinde baþka birine paslamalý. (Paslamak için sohbete \`!pasla @kisi\` yazmalý)`);
-            resultMsg = `${targetUser.username} adlý kiþiye bomba attýn.`;
+            interaction.channel.send(`?? **BOMBA ATILDI!**\n${targetUser}'e bomba atÄ±ldÄ±! 30 saniye iÃ§inde baÅŸka birine paslamalÄ±. (Paslamak iÃ§in sohbete \`!pasla @kisi\` yazmalÄ±)`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸiye bomba attÄ±n.`;
         }
 
         if (itemId === 'ifsa_et') {
@@ -329,42 +334,42 @@ client.on('interactionCreate', async (interaction) => {
                 const messages = await interaction.channel.messages.fetch({ limit: 50 });
                 const targetMsg = messages.find(m => m.author.id === targetUser.id);
                 if (targetMsg) {
-                    const anonEmbed = new EmbedBuilder().setColor('#34495e').setAuthor({ name: 'Gizli Ýfþa' })
-                        .setDescription(`**${targetUser.username}** adlý kiþinin geçmiþteki bir mesajý:\n\n> ${targetMsg.content}`);
+                    const anonEmbed = new EmbedBuilder().setColor('#34495e').setAuthor({ name: 'Gizli Ä°fÅŸa' })
+                        .setDescription(`**${targetUser.username}** adlÄ± kiÅŸinin geÃ§miÅŸteki bir mesajÄ±:\n\n> ${targetMsg.content}`);
                     interaction.channel.send({ embeds: [anonEmbed] });
-                    resultMsg = `${targetUser.username} adlý kiþinin bir mesajýný anonim olarak ifþa ettin!`;
-                } else { resultMsg = `Bu kanalda ${targetUser.username} adlý kiþinin eski bir mesajýný bulamadým.`; }
-            } catch (e) { resultMsg = `Mesajlarý tararken hata oluþtu.`; }
+                    resultMsg = `${targetUser.username} adlÄ± kiÅŸinin bir mesajÄ±nÄ± anonim olarak ifÅŸa ettin!`;
+                } else { resultMsg = `Bu kanalda ${targetUser.username} adlÄ± kiÅŸinin eski bir mesajÄ±nÄ± bulamadÄ±m.`; }
+            } catch (e) { resultMsg = `MesajlarÄ± tararken hata oluÅŸtu.`; }
         }
 
         if (itemId === 'zorla_etiket') {
             forcedTags.set(targetUser.id, userId);
-            interaction.channel.send(`?? **ETÝKET ZORUNLULUÐU!**\n${targetUser}, bir sonraki mesajýnda ${interaction.user}'i etiketlemek zorunda! Aksi takdirde 5 AP kaybedecek.`);
-            resultMsg = `${targetUser.username} adlý kiþiye etiket zorunluluðu getirdin.`;
+            interaction.channel.send(`?? **ETÄ°KET ZORUNLULUÄžU!**\n${targetUser}, bir sonraki mesajÄ±nda ${interaction.user}'i etiketlemek zorunda! Aksi takdirde 5 AP kaybedecek.`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸiye etiket zorunluluÄŸu getirdin.`;
         }
 
         if (itemId === 'sahte_hapis') {
-            interaction.channel.send(`?? **POLÝS OPERASYONU!**\nAjan ${interaction.user}'in ihbarý üzerine ${targetUser} gözaltýna alýndý ve 1 dakikalýðýna hapse týkýldý! (Eðlence amaçlýdýr)`);
-            resultMsg = `${targetUser.username} adlý kiþiyi hapse attýn.`;
+            interaction.channel.send(`?? **POLÄ°S OPERASYONU!**\nAjan ${interaction.user}'in ihbarÄ± Ã¼zerine ${targetUser} gÃ¶zaltÄ±na alÄ±ndÄ± ve 1 dakikalÄ±ÄŸÄ±na hapse tÄ±kÄ±ldÄ±! (EÄŸlence amaÃ§lÄ±dÄ±r)`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸiyi hapse attÄ±n.`;
         }
 
         if (itemId === 'tokata_at') {
             const slapGifs = ['https://media.tenor.com/8Q9W4wAAAAAj/slap.gif', 'https://media.tenor.com/L7aXq9zAAAAi/slap-anime.gif'];
             const gif = slapGifs[Math.floor(Math.random() * slapGifs.length)];
-            interaction.channel.send(`?? **PAT!**\nAjan ${interaction.user}, ${targetUser}'e tokadý yapýþtýrdý!\n${gif}`);
-            resultMsg = `${targetUser.username} adlý kiþiye tokat attýn.`;
+            interaction.channel.send(`?? **PAT!**\nAjan ${interaction.user}, ${targetUser}'e tokadÄ± yapÄ±ÅŸtÄ±rdÄ±!\n${gif}`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸiye tokat attÄ±n.`;
         }
 
         if (itemId === 'ters_psikoloji') {
-            interaction.channel.send(`?? **GÝZEMLÝ MESAJ!**\n${targetUser}, ${interaction.user} sana bir þey söylemek istiyor... Cevap verirsen ne olacaðýný göreceksin.`);
-            resultMsg = `${targetUser.username} adlý kiþiye tuzak kurdun.`;
+            interaction.channel.send(`?? **GÄ°ZEMLÄ° MESAJ!**\n${targetUser}, ${interaction.user} sana bir ÅŸey sÃ¶ylemek istiyor... Cevap verirsen ne olacaÄŸÄ±nÄ± gÃ¶receksin.`);
+            resultMsg = `${targetUser.username} adlÄ± kiÅŸiye tuzak kurdun.`;
         }
 
-        return interaction.followUp({ content: `? **${item.name}** ${targetUser.username} üzerinde kullanýldý!\n${resultMsg}`, ephemeral: true });
+        return interaction.followUp({ content: `? **${item.name}** ${targetUser.username} Ã¼zerinde kullanÄ±ldÄ±!\n${resultMsg}`, flags: 64 });
     }
 });
 
-// --- MESAJ DÝNLEME ---
+// --- MESAJ DÄ°NLEME ---
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -372,19 +377,19 @@ client.on('messageCreate', async (message) => {
         const requiredUserId = forcedTags.get(message.author.id);
         if (message.mentions.users.has(requiredUserId)) {
             forcedTags.delete(message.author.id);
-            message.channel.send(`? ${message.author} üzerine düþeni yaptý ve etiketledi.`);
+            message.channel.send(`? ${message.author} Ã¼zerine dÃ¼ÅŸeni yaptÄ± ve etiketledi.`);
         } else {
             forcedTags.delete(message.author.id);
             const targetData = await getUser(message.author.id);
             targetData.ap = Math.max(0, (targetData.ap || 0) - 5);
             await saveUser(message.author.id, targetData);
-            message.channel.send(`? ${message.author} etiketlemedi ve **-5 AP** cezasý aldý!`);
+            message.channel.send(`? ${message.author} etiketlemedi ve **-5 AP** cezasÄ± aldÄ±!`);
         }
     }
 
     if (message.content.startsWith('!pasla')) {
         const target = message.mentions.users.first();
-        if (!target) return message.reply('Kimi etiketliyorsun? `!pasla @kisi` þeklinde yaz.');
+        if (!target) return message.reply('Kimi etiketliyorsun? `!pasla @kisi` ÅŸeklinde yaz.');
         
         if (activeBombs.has(message.author.id)) {
             const bombData = activeBombs.get(message.author.id);
@@ -392,11 +397,11 @@ client.on('messageCreate', async (message) => {
             activeBombs.delete(message.author.id);
             
             activeBombs.set(target.id, { sender: message.author.id, timeout: setTimeout(() => {
-                message.channel.send(`?? **BOMBA PATLADI!**\n${target} bombayý kimseye paslayamadý ve havaya uçtu!`);
+                message.channel.send(`?? **BOMBA PATLADI!**\n${target} bombayÄ± kimseye paslayamadÄ± ve havaya uÃ§tu!`);
                 activeBombs.delete(target.id);
             }, 30000) });
             
-            message.channel.send(`?? **BOMBA PASLANDI!**\n${message.author} bombayý ${target}'e pasladý! 30 saniyesi var!`);
+            message.channel.send(`?? **BOMBA PASLANDI!**\n${message.author} bombayÄ± ${target}'e pasladÄ±! 30 saniyesi var!`);
         }
     }
 
@@ -440,12 +445,12 @@ client.on('messageReactionAdd', async (reaction, user) => {
     });
 });
 
-// --- ÖDÜL SÝSTEMÝ (1 veya 2 AP) ---
+// --- Ã–DÃœL SÄ°STEMÄ° (1 veya 2 AP) ---
 async function completeMission(userId, mission, contextMessage) {
     missions.delete(userId); 
     const user = await getUser(userId);
     
-    // Rastgele 1 veya 2 AP kazanma þansý
+    // Rastgele 1 veya 2 AP kazanma ÅŸansÄ±
     let baseReward = Math.floor(Math.random() * 2) + 1; 
     const reward = baseReward + (user.buff || 0); 
     
@@ -458,17 +463,18 @@ async function completeMission(userId, mission, contextMessage) {
     const discordUser = await client.users.fetch(userId).catch(() => null);
     
     if (discordUser) {
-        discordUser.send({ embeds: [new EmbedBuilder().setColor('#2ecc71').setTitle('?? GÖREV BAÞARILI').setDescription(`**Kazanýlan:** \`+${reward} AP\``)] }).catch(() => null);
+        discordUser.send({ embeds: [new EmbedBuilder().setColor('#2ecc71').setTitle('?? GÃ–REV BAÅžARILI').setDescription(`**KazanÄ±lan:** \`+${reward} AP\``)] }).catch(() => null);
     }
 
     if (contextMessage && contextMessage.channel) {
         contextMessage.channel.send({ embeds: [new EmbedBuilder()
             .setColor('#e74c3c')
-            .setTitle('?? OPERASYON BAÞARILI! ??')
-            .setDescription(`Ajan <@${userId}>, gizli görevini tamamladý!`)
-            .addFields({ name: '? Kazanýlan AP', value: `\`+${reward} AP\``, inline: true })
+            .setTitle('?? OPERASYON BAÅžARILI! ??')
+            .setDescription(`Ajan <@${userId}>, gizli gÃ¶revini tamamladÄ±!`)
+            .addFields({ name: '? KazanÄ±lan AP', value: `\`+${reward} AP\``, inline: true })
         ] });
     }
 }
 
 client.login(process.env.AJAN_TOKEN || process.env.DISCORD_TOKEN);
+
