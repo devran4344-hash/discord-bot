@@ -12,10 +12,10 @@ try {
         const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8'));
         admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
         db = admin.firestore();
-        console.log("[SİSTEM] Firebase bağlantısı başarılı!");
+        console.log("[SYSTEM] Firebase connected successfully!");
     }
 } catch (error) {
-    console.error("[HATA] Firebase bağlantı hatası:", error);
+    console.error("[ERROR] Firebase connection error:", error);
 }
 
 const client = new Client({ 
@@ -147,7 +147,12 @@ client.on('interactionCreate', async (interaction) => {
         }
 
         try {
-                    await interaction.deferReply({ flags: 64 });
+                    try {
+            await interaction.deferReply({ flags: 64 });
+        } catch (err) {
+            if (err.code === 10062) return; // Süresi geçen istekleri görmezden gel ve çökme!
+            return;
+        }
                 } catch (e) {
                     if (e.code === 10062) return; // Süresi geçmiş etkileşimleri yoksay
                     throw e;
