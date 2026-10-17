@@ -1,4 +1,4 @@
-﻿name: Ajan Bot
+name: Ajan Bot
 on:
   push:
     branches: [ main ]
@@ -11,13 +11,19 @@ jobs:
       run:
         working-directory: ./ajan-botu
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
+          
       - name: Install dependencies
         run: npm install
+        
       - name: Start Bot
         env:
           AJAN_TOKEN: ${{ secrets.AJAN_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
         run: node index.js
