@@ -1,7 +1,6 @@
 // ╔═══════════════════════════════════════════════════════════════╗
-// ║              !DARBE — Firebase Tabanlı Kilit Sistemi          ║
-// ║    Çoklu-Whitelist • AES-256-GCM • Çakışma Koruması • Audit   ║
-// ║         DÜZELTİLDİ: Kanal/kategori izinleri tam restore       ║
+// ║              !DARBE — Full Optimize & Reorder                 ║
+// ║    Banlar, Muteler, Eşzamanlı Kilit, Hızlı Restore            ║
 // ╚═══════════════════════════════════════════════════════════════╝
 const {
   PermissionFlagsBits: P,
@@ -30,13 +29,13 @@ if (!admin.apps.length) {
 const db = () => admin.firestore();
 
 // ═══════════════════════════════════════════════════════════════
-//  CONFIG
+//  CONFIG (Optimize edildi: Gereksiz bekleme süreleri kaldırıldı)
 // ═══════════════════════════════════════════════════════════════
 const CONFIG = {
   QUARANTINE_NAME: 'darbe-chat',
   CODE_LENGTH: 6,
-  SNAPSHOT_PASSES: 3,
-  ACTION_DELAY_MS: 350,
+  SNAPSHOT_PASSES: 1, // Hız için tek geçiş
+  ACTION_DELAY_MS: 50, // Yapay bekleme süresi çok düşürüldü
   LOCKED_FLAG: '__DARBE_LOCKED__',
 
   COLLECTION_BACKUPS: 'darbe_backups',
@@ -246,6 +245,7 @@ async function saveBackup(code, data) {
       members: data.members.length,
       emojis: data.emojis.length,
       stickers: data.stickers.length,
+      bans: data.bans.length,
     },
     _ts: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -280,42 +280,43 @@ async function writeAudit(entry) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SNAPSHOT
+//  SNAPSHOT (Ban ve Mute Dahil)
 // ═══════════════════════════════════════════════════════════════
 async function takeSnapshot(guild, progressCb) {
   const merged = { roles: new Map(), categories: new Map(), channels: new Map(), members: new Map() };
 
-  for (let pass = 1; pass <= CONFIG.SNAPSHOT_PASSES; pass++) {
-    if (progressCb) await progressCb(`📸 Snapshot geçişi **${pass}/${CONFIG.SNAPSHOT_PASSES}**...`);
-    await guild.roles.fetch().catch(() => {});
-    await guild.channels.fetch().catch(() => {});
-    await guild.members.fetch().catch(() => {});
+  if (progressCb) await progressCb(`📸 Sunucu taranıyor...`);
+  await guild.roles.fetch().catch(() => {});
+  await guild.channels.fetch().catch(() => {});
+  await guild.members.fetch().catch(() => {});
 
-    for (const [id, r] of guild.roles.cache) if (!merged.roles.has(id)) merged.roles.set(id, serializeRole(r));
-    for (const [id, ch] of guild.channels.cache) {
-      if (ch.type === ChannelType.GuildCategory && !merged.categories.has(id)) {
-        merged.categories.set(id, serializeChannel(ch));
-      } else if (ch.type !== ChannelType.GuildCategory && !merged.channels.has(id)) {
-        merged.channels.set(id, serializeChannel(ch));
-      }
-    }
-    for (const [id, m] of guild.members.cache) {
-      if (!merged.members.has(id)) {
-        merged.members.set(id, {
-          id,
-          userTag: m.user.tag,
-          roles: m.roles.cache.filter((r) => r.id !== guild.id).map((r) => r.id),
-          joinedAt: m.joinedTimestamp,
-          isBot: m.user.bot,
-        });
-      }
-    }
-    await sleep(400);
+  for (const [id, r] of guild.roles.cache) merged.roles.set(id, serializeRole(r));
+  for (const [id, ch] of guild.channels.cache) {
+    if (ch.type === ChannelType.GuildCategory) merged.categories.set(id, serializeChannel(ch));
+    else merged.channels.set(id, serializeChannel(ch));
   }
+  for (const [id, m] of guild.members.cache) {
+    merged.members.set(id, {
+      id,
+      userTag: m.user.tag,
+      roles: m.roles.cache.filter((r) => r.id !== guild.id).map((r) => r.id),
+      joinedAt: m.joinedTimestamp,
+      isBot: m.user.bot,
+      communicationDisabledUntil: m.communicationDisabledUntilTimestamp // MUTE EKLENDİ
+    });
+  }
+
+  // BANLARI ÇEK
+  let bans = [];
+  if (progressCb) await progressCb(`🔨 Banlar kopyalanıyor...`);
+  try {
+    const banList = await guild.bans.fetch();
+    bans = banList.map(b => ({ userId: b.user.id, reason: b.reason }));
+  } catch (e) {}
 
   const snapshot = {
     meta: {
-      version: 4,
+      version: 5,
       guildId: guild.id,
       guildName: guild.name,
       ownerId: guild.ownerId,
@@ -346,6 +347,7 @@ async function takeSnapshot(guild, progressCb) {
     categories: [...merged.categories.values()],
     channels: [...merged.channels.values()],
     members: [...merged.members.values()],
+    bans: bans, // BANLAR EKLENDİ
     emojis: guild.emojis.cache.map((e) => ({ name: e.name, url: e.imageURL({ size: 128 }), animated: e.animated })),
     stickers: guild.stickers.cache.map((s) => ({ name: s.name, description: s.description, tags: s.tags, url: s.url })),
   };
@@ -390,7 +392,7 @@ function serializeChannel(ch) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  LOCKDOWN
+//  LOCKDOWN (TAM OPTİMİZE - KANAL VE ROL SÖKME AYNI ANDA)
 // ═══════════════════════════════════════════════════════════════
 const LOCK_DENY = [
   P.SendMessages, P.SendMessagesInThreads, P.CreatePublicThreads,
@@ -406,50 +408,58 @@ async function lockdownGuild(guild, client, progressCb) {
   const everyoneId = guild.id;
   const results = { channelsLocked: 0, rolesStripped: 0, membersAffected: 0, errors: [] };
 
-  const allChannels = [...guild.channels.cache.values()];
-  for (let i = 0; i < allChannels.length; i++) {
-    const ch = allChannels[i];
-    try {
-      const perms = [{ id: everyoneId, deny: [P.ViewChannel, ...LOCK_DENY] }];
-      if (botHighest?.id) {
-        perms.push({
-          id: botHighest.id,
-          allow: [P.ViewChannel, P.SendMessages, P.ManageChannels, P.ManageMessages, P.ManageRoles],
-        });
+  // 1. GÖREV: Kanalları Kilitle
+  const lockChannels = async () => {
+    const allChannels = [...guild.channels.cache.values()];
+    for (let i = 0; i < allChannels.length; i++) {
+      const ch = allChannels[i];
+      try {
+        const perms = [{ id: everyoneId, deny: [P.ViewChannel, ...LOCK_DENY] }];
+        if (botHighest?.id) {
+          perms.push({
+            id: botHighest.id,
+            allow: [P.ViewChannel, P.SendMessages, P.ManageChannels, P.ManageMessages, P.ManageRoles],
+          });
+        }
+        await ch.permissionOverwrites.set(perms, 'DARBE lockdown');
+        results.channelsLocked++;
+      } catch (e) {
+        results.errors.push(`Kanal kilit: ${ch.name}`);
       }
-      await ch.permissionOverwrites.set(perms, 'DARBE lockdown');
-      results.channelsLocked++;
-    } catch (e) {
-      results.errors.push(`Kanal kilit: ${ch.name} → ${e.message.slice(0, 80)}`);
+      if (i % 5 === 0 && progressCb) await progressCb(`🔒 Kanallar kilitleniyor... \`${i + 1}/${allChannels.length}\``);
+      await sleep(CONFIG.ACTION_DELAY_MS);
     }
-    if (i % 5 === 0 && progressCb) await progressCb(`🔒 Kanallar kilitleniyor... \`${i + 1}/${allChannels.length}\``);
-    await sleep(CONFIG.ACTION_DELAY_MS);
-  }
+  };
+
+  // 2. GÖREV: Üye Rollerini Al
+  const stripRoles = async () => {
+    if (progressCb) await progressCb('🎭 Üye rolleri arka planda sökülüyor...');
+    const members = await guild.members.fetch().catch(() => guild.members.cache);
+    for (const member of members.values()) {
+      if (member.id === client.user.id || member.id === guild.ownerId) continue;
+
+      const toRemove = member.roles.cache.filter((r) => {
+        if (r.id === guild.id) return false;
+        if (r.position >= botHighest.position) return false;
+        return true;
+      });
+      if (!toRemove.size) continue;
+      try {
+        await member.roles.remove([...toRemove.values()], 'DARBE lockdown');
+        results.rolesStripped += toRemove.size;
+        results.membersAffected++;
+      } catch (e) {
+        results.errors.push(`Rol: ${member.user.tag}`);
+      }
+      await sleep(50); // Optimize edildi
+    }
+  };
+
+  // AYNI ANDA ÇALIŞTIR (Eşzamanlı)
+  await Promise.all([lockChannels(), stripRoles()]);
 
   try { const hooks = await guild.fetchWebhooks(); for (const w of hooks.values()) await w.delete('DARBE').catch(() => {}); } catch {}
   try { const invs = await guild.invites.fetch(); for (const i of invs.values()) await i.delete('DARBE').catch(() => {}); } catch {}
-
-  if (progressCb) await progressCb('👥 Üye rolleri sıfırlanıyor...');
-  const members = await guild.members.fetch().catch(() => guild.members.cache);
-  for (const member of members.values()) {
-    if (member.id === client.user.id) continue;
-    if (member.id === guild.ownerId) continue;
-
-    const toRemove = member.roles.cache.filter((r) => {
-      if (r.id === guild.id) return false;
-      if (r.position >= botHighest.position) return false;
-      return true;
-    });
-    if (!toRemove.size) continue;
-    try {
-      await member.roles.remove([...toRemove.values()], 'DARBE lockdown');
-      results.rolesStripped += toRemove.size;
-      results.membersAffected++;
-    } catch (e) {
-      results.errors.push(`Rol: ${member.user.tag} → ${e.message.slice(0, 80)}`);
-    }
-    await sleep(120);
-  }
 
   if (progressCb) await progressCb('🏗️ Sığınak kanalı oluşturuluyor...');
   let quarantine;
@@ -473,7 +483,7 @@ async function lockdownGuild(guild, client, progressCb) {
       reason: 'DARBE quarantine',
     });
   } catch (e) {
-    results.errors.push(`Quarantine: ${e.message.slice(0, 80)}`);
+    results.errors.push(`Quarantine hatası`);
   }
 
   try {
@@ -486,7 +496,7 @@ async function lockdownGuild(guild, client, progressCb) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  RESTORE (TAM DÜZELTİLMİŞ)
+//  RESTORE (ÖNEMLİLER İLK: ROLLER -> KANALLAR -> BANLAR -> ÜYELER)
 // ═══════════════════════════════════════════════════════════════
 async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
   const result = {
@@ -497,43 +507,34 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
     channelsUpdated: 0,
     channelsCreated: 0,
     membersRestored: 0,
+    bansRestored: 0,
     errors: [],
   };
   const idMap = { roles: {}, categories: {}, channels: {} };
 
-  // ─── Overwrite maplayıcı ─────────────────────────────────────
   const mapOverwrites = (overwrites) => {
     const out = [];
     for (const o of (overwrites || [])) {
       const newId = idMap.roles[o.id] || idMap.categories[o.id] || idMap.channels[o.id] || o.id;
-      const exists =
-        guild.roles.cache.has(newId) ||
-        guild.channels.cache.has(newId) ||
-        newId === guild.id;
+      const exists = guild.roles.cache.has(newId) || guild.channels.cache.has(newId) || newId === guild.id;
       if (!exists) continue;
       try {
-        out.push({
-          id: newId,
-          type: o.type,
-          allow: BigInt(o.allow),
-          deny: BigInt(o.deny),
-        });
+        out.push({ id: newId, type: o.type, allow: BigInt(o.allow), deny: BigInt(o.deny) });
       } catch {}
     }
     return out;
   };
 
   // ═══════════════════════════════════════════════════════════
-  //  1) ROLLER — ID öncelikli eşleştirme (roller silinmedi)
+  //  1) ROLLER (Öncelikli)
   // ═══════════════════════════════════════════════════════════
-  if (progressCb) await progressCb(`🎭 Roller eşleştiriliyor (0/${backup.roles.length})...`);
+  if (progressCb) await progressCb(`🎭 Roller oluşturuluyor/eşleştiriliyor...`);
   const sortedRoles = [...backup.roles].sort((a, b) => a.position - b.position);
   for (let i = 0; i < sortedRoles.length; i++) {
     const r = sortedRoles[i];
     if (r.isEveryone || r.managed) { idMap.roles[r.id] = r.id; continue; }
 
-    let target = guild.roles.cache.get(r.id);
-    if (!target) target = guild.roles.cache.find((x) => x.name === r.name);
+    let target = guild.roles.cache.get(r.id) || guild.roles.cache.find((x) => x.name === r.name);
 
     if (target) {
       idMap.roles[r.id] = target.id;
@@ -551,29 +552,21 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         idMap.roles[r.id] = created.id;
         result.rolesCreated++;
       } catch (e) {
-        result.errors.push(`Rol ${r.name}: ${e.message.slice(0, 80)}`);
+        result.errors.push(`Rol ${r.name}`);
       }
-      await sleep(180);
+      await sleep(50); // Optimize edildi
     }
     if (i % 5 === 0 && progressCb) await progressCb(`🎭 Roller (${i + 1}/${sortedRoles.length})...`);
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  2) KATEGORİLER — VAR OLANI UPDATE ET (izinler dahil)
+  //  2) KATEGORİLER
   // ═══════════════════════════════════════════════════════════
-  if (progressCb) await progressCb(`📂 Kategoriler (0/${backup.categories.length})...`);
+  if (progressCb) await progressCb(`📂 Kategoriler...`);
   const sortedCats = [...backup.categories].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   for (let i = 0; i < sortedCats.length; i++) {
     const c = sortedCats[i];
-
-    // ID önceliği
-    let target = guild.channels.cache.get(c.id);
-    if (!target) {
-      target = guild.channels.cache.find(
-        (x) => x.type === ChannelType.GuildCategory && x.name === c.name
-      );
-    }
-
+    let target = guild.channels.cache.get(c.id) || guild.channels.cache.find((x) => x.type === ChannelType.GuildCategory && x.name === c.name);
     const overwrites = mapOverwrites(c.permissionOverwrites);
 
     if (target) {
@@ -585,7 +578,7 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         idMap.categories[c.id] = target.id;
         result.categoriesUpdated++;
       } catch (e) {
-        result.errors.push(`Kategori update ${c.name}: ${e.message.slice(0, 80)}`);
+        result.errors.push(`Kategori ${c.name}`);
         idMap.categories[c.id] = target.id;
       }
     } else {
@@ -600,30 +593,23 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         idMap.categories[c.id] = created.id;
         result.categoriesCreated++;
       } catch (e) {
-        result.errors.push(`Kategori ${c.name}: ${e.message.slice(0, 80)}`);
+        result.errors.push(`Kategori ${c.name}`);
       }
     }
-    await sleep(180);
+    await sleep(50);
     if (i % 3 === 0 && progressCb) await progressCb(`📂 Kategoriler (${i + 1}/${sortedCats.length})...`);
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  3) KANALLAR — VAR OLANI UPDATE ET (izinler dahil)
+  //  3) KANALLAR
   // ═══════════════════════════════════════════════════════════
-  if (progressCb) await progressCb(`📺 Kanallar (0/${backup.channels.length})...`);
+  if (progressCb) await progressCb(`📺 Kanallar...`);
   const sortedCh = [...backup.channels].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   for (let i = 0; i < sortedCh.length; i++) {
     const c = sortedCh[i];
-
-    // Quarantine kanalını atla (sonda silinecek)
     if (quarantineId && c.id === quarantineId) continue;
 
-    // ID önceliği
-    let target = guild.channels.cache.get(c.id);
-    if (!target) {
-      target = guild.channels.cache.find((x) => x.name === c.name && x.type === c.type);
-    }
-
+    let target = guild.channels.cache.get(c.id) || guild.channels.cache.find((x) => x.name === c.name && x.type === c.type);
     const overwrites = mapOverwrites(c.permissionOverwrites);
 
     if (target) {
@@ -633,13 +619,10 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         if (c.position !== target.rawPosition) opts.position = c.position;
         if ((c.topic ?? null) !== (target.topic ?? null)) opts.topic = c.topic;
         if ((c.nsfw ?? null) !== (target.nsfw ?? null)) opts.nsfw = c.nsfw;
-        if (c.rateLimitPerUser != null && c.rateLimitPerUser !== target.rateLimitPerUser) {
-          opts.rateLimitPerUser = c.rateLimitPerUser;
-        }
+        if (c.rateLimitPerUser != null && c.rateLimitPerUser !== target.rateLimitPerUser) opts.rateLimitPerUser = c.rateLimitPerUser;
         if (c.bitrate != null && c.bitrate !== target.bitrate) opts.bitrate = c.bitrate;
         if (c.userLimit != null && c.userLimit !== target.userLimit) opts.userLimit = c.userLimit;
 
-        // Parent (kategori)
         if (c.parentId !== undefined) {
           const newParent = c.parentId ? (idMap.categories[c.parentId] || c.parentId) : null;
           if (newParent !== target.parentId) opts.parent = newParent;
@@ -649,7 +632,7 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         idMap.channels[c.id] = target.id;
         result.channelsUpdated++;
       } catch (e) {
-        result.errors.push(`Kanal update ${c.name}: ${e.message.slice(0, 80)}`);
+        result.errors.push(`Kanal update ${c.name}`);
         idMap.channels[c.id] = target.id;
       }
     } else {
@@ -671,15 +654,29 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
         idMap.channels[c.id] = created.id;
         result.channelsCreated++;
       } catch (e) {
-        result.errors.push(`Kanal ${c.name}: ${e.message.slice(0, 80)}`);
+        result.errors.push(`Kanal ${c.name}`);
       }
     }
-    await sleep(200);
+    await sleep(50);
     if (i % 5 === 0 && progressCb) await progressCb(`📺 Kanallar (${i + 1}/${sortedCh.length})...`);
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  4) SUNUCU AYARLARI
+  //  4) BANLARI GERİ YÜKLE
+  // ═══════════════════════════════════════════════════════════
+  if (backup.bans && backup.bans.length > 0) {
+    if (progressCb) await progressCb('🔨 Banlar geri yükleniyor...');
+    for (const ban of backup.bans) {
+      try {
+        await guild.bans.create(ban.userId, { reason: ban.reason || 'DARBE restore' });
+        result.bansRestored++;
+      } catch (e) {}
+      await sleep(50);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  5) SUNUCU AYARLARI
   // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb('⚙️ Sunucu ayarları geri yükleniyor...');
   try {
@@ -689,47 +686,47 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
       const cleanName = g.name.replace(/^\[DARBE\]\s*/, '');
       if (cleanName !== guild.name) editData.name = cleanName;
     }
-    if (g.verificationLevel != null && g.verificationLevel !== guild.verificationLevel) {
-      editData.verificationLevel = g.verificationLevel;
-    }
-    if (g.explicitContentFilter != null && g.explicitContentFilter !== guild.explicitContentFilter) {
-      editData.explicitContentFilter = g.explicitContentFilter;
-    }
-    if (g.defaultMessageNotifications != null && g.defaultMessageNotifications !== guild.defaultMessageNotifications) {
-      editData.defaultMessageNotifications = g.defaultMessageNotifications;
-    }
+    if (g.verificationLevel != null && g.verificationLevel !== guild.verificationLevel) editData.verificationLevel = g.verificationLevel;
+    if (g.explicitContentFilter != null && g.explicitContentFilter !== guild.explicitContentFilter) editData.explicitContentFilter = g.explicitContentFilter;
+    if (g.defaultMessageNotifications != null && g.defaultMessageNotifications !== guild.defaultMessageNotifications) editData.defaultMessageNotifications = g.defaultMessageNotifications;
     if (g.afkTimeout && g.afkTimeout !== guild.afkTimeout) editData.afkTimeout = g.afkTimeout;
-    if (g.preferredLocale && g.preferredLocale !== guild.preferredLocale) {
-      editData.preferredLocale = g.preferredLocale;
-    }
+    if (g.preferredLocale && g.preferredLocale !== guild.preferredLocale) editData.preferredLocale = g.preferredLocale;
     if (Object.keys(editData).length) await guild.edit(editData, 'DARBE restore');
   } catch (e) {
-    result.errors.push(`Sunucu ayar: ${e.message.slice(0, 80)}`);
+    result.errors.push(`Sunucu ayar`);
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  5) ÜYE ROLLERİ
+  //  6) ÜYE ROLLERİ VE MUTELERİ
   // ═══════════════════════════════════════════════════════════
-  if (progressCb) await progressCb('👥 Üye rolleri geri yükleniyor...');
+  if (progressCb) await progressCb('👥 Üye rolleri ve cezaları geri veriliyor...');
   const members = await guild.members.fetch().catch(() => guild.members.cache);
   for (const m of members.values()) {
     const snap = backup.members.find((x) => x.id === m.id);
     if (!snap) continue;
-    const newRoleIds = snap.roles
-      .map((oldId) => idMap.roles[oldId] || oldId)
-      .filter((id) => guild.roles.cache.has(id) && id !== guild.id);
-    if (!newRoleIds.length) continue;
-    try {
-      await m.roles.add(newRoleIds, 'DARBE restore');
-      result.membersRestored++;
-    } catch (e) {
-      result.errors.push(`Üye ${m.user.tag}: ${e.message.slice(0, 80)}`);
+    
+    // Rolleri ver
+    const newRoleIds = snap.roles.map((oldId) => idMap.roles[oldId] || oldId).filter((id) => guild.roles.cache.has(id) && id !== guild.id);
+    if (newRoleIds.length) {
+      try {
+        await m.roles.add(newRoleIds, 'DARBE restore');
+        result.membersRestored++;
+      } catch (e) {
+        result.errors.push(`Üye ${m.user.tag}`);
+      }
     }
-    await sleep(130);
+
+    // Muteleri ver
+    if (snap.communicationDisabledUntil && snap.communicationDisabledUntil > Date.now()) {
+      try {
+        await m.disableCommunicationUntil(snap.communicationDisabledUntil, 'DARBE restore (Mute)');
+      } catch (e) {}
+    }
+    await sleep(50);
   }
 
   // ═══════════════════════════════════════════════════════════
-  //  6) QUARANTINE KANALINI SİL (ID ile)
+  //  7) QUARANTINE KANALINI SİL
   // ═══════════════════════════════════════════════════════════
   if (progressCb) await progressCb('🧹 Sığınak kanalı temizleniyor...');
   if (quarantineId) {
@@ -747,12 +744,8 @@ async function restoreGuild(guild, client, backup, quarantineId, progressCb) {
 //  DURUM MESAJI
 // ═══════════════════════════════════════════════════════════════
 function buildStateBlockEmbed(state, mode) {
-  const startedAt = state.darbe_startedAt
-    ? moment(state.darbe_startedAt).format('DD.MM.YYYY HH:mm:ss')
-    : 'Bilinmiyor';
-  const elapsed = state.darbe_startedAt
-    ? fmtDuration(Date.now() - new Date(state.darbe_startedAt).getTime())
-    : '—';
+  const startedAt = state.darbe_startedAt ? moment(state.darbe_startedAt).format('DD.MM.YYYY HH:mm:ss') : 'Bilinmiyor';
+  const elapsed = state.darbe_startedAt ? fmtDuration(Date.now() - new Date(state.darbe_startedAt).getTime()) : '—';
 
   if (state.darbe_state === 'running') {
     return new EmbedBuilder()
@@ -858,6 +851,7 @@ module.exports = {
           `> 📂 Kategori: **${backup.categories.length}**\n` +
           `> 📺 Kanal: **${backup.channels.length}**\n` +
           `> 👥 Üye: **${backup.members.length}**\n` +
+          `> 🔨 Ban: **${backup.bans ? backup.bans.length : 0}**\n` +
           `> 😄 Emoji: **${backup.emojis.length}**\n\n` +
           `Onaylamak için aşağıdaki butona bas.`
         );
@@ -897,7 +891,6 @@ module.exports = {
         const editStatus = async (t) => { await status.edit(t).catch(() => {}); };
 
         try {
-          // Quarantine ID'sini oku
           const freshState = await readState(guild.id);
           const quarantineId = freshState.darbe_quarantineChannelId || state.darbe_quarantineChannelId || null;
 
@@ -918,6 +911,7 @@ module.exports = {
               channelsUpdated: result.channelsUpdated,
               channelsCreated: result.channelsCreated,
               membersRestored: result.membersRestored,
+              bansRestored: result.bansRestored,
               errors: result.errors.length,
             },
           });
@@ -936,6 +930,7 @@ module.exports = {
               { name: '📺 Kanal (güncellendi)', value: `\`${result.channelsUpdated}\``, inline: true },
               { name: '📺 Kanal (yeni)', value: `\`${result.channelsCreated}\``, inline: true },
               { name: '👥 Üye', value: `\`${result.membersRestored}\``, inline: true },
+              { name: '🔨 Ban', value: `\`${result.bansRestored}\``, inline: true },
               { name: '❌ Hata', value: `\`${result.errors.length}\``, inline: true }
             )
             .setTimestamp();
@@ -976,7 +971,7 @@ module.exports = {
         '**Bu işlem:**\n' +
         '> 🔒 Tüm kanalları kilitleyecek\n' +
         '> 🎭 Herkesin rollerini alacak\n' +
-        '> 🏗️ `darbe-chat` açacak\n' +
+        '> 🔨 Banları ve Muteleri kaydedecek\n' +
         '> 💾 Firebase\'e şifreli yedek atıp DM\'den kod gönderecek\n\n' +
         `**${CONFIG.CONFIRM_TIMEOUT_MS / 1000} saniye içinde onayla.**`
       )
@@ -1020,7 +1015,7 @@ module.exports = {
       const editStatus = async (t) => { await status.edit(t).catch(() => {}); };
 
       try {
-        // 1) Snapshot
+        // 1) Snapshot (Hemen o anki durumu kaydeder)
         const backup = await takeSnapshot(guild, editStatus);
         backup.meta.createdBy = message.author.tag;
         backup.meta.createdById = message.author.id;
@@ -1054,7 +1049,7 @@ module.exports = {
               { name: '📂 Kategori', value: `\`${backup.categories.length}\``, inline: true },
               { name: '📺 Kanal', value: `\`${backup.channels.length}\``, inline: true },
               { name: '👥 Üye', value: `\`${backup.members.length}\``, inline: true },
-              { name: '😄 Emoji', value: `\`${backup.emojis.length}\``, inline: true },
+              { name: '🔨 Ban', value: `\`${backup.bans.length}\``, inline: true },
               { name: '🔑 Checksum', value: `\`${backup.meta.checksum.slice(0, 12)}…\``, inline: true }
             )
             .setFooter({ text: 'Bu kodu kimseyle paylaşma!' })
@@ -1065,7 +1060,7 @@ module.exports = {
           await message.channel.send(`⚠️ DM gönderilemedi (DM kapalı): \`${code}\``);
         }
 
-        // 5) LOCKDOWN (state 'running' kalır)
+        // 5) LOCKDOWN (Kanallar ve Roller AYNI ANDA çalışır)
         const { results, quarantine } = await lockdownGuild(guild, client, editStatus);
 
         // 6) Kilit durumuna geç + quarantine ID kaydet
