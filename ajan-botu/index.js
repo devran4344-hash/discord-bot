@@ -158,7 +158,7 @@ const marketItems = {
     'kalkan': { name: '🛡️ Kalkan', price: 20, desc: 'Görev cezasından muaf olursun.' }
 };
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     console.log(`[AJAN BOT] ${client.user.tag} aktif!`);
     const commands = [
         new SlashCommandBuilder().setName('gorev-al').setDescription('Gizli bir görev alırsın.'),
@@ -174,15 +174,19 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand() && !interaction.isStringSelectMenu()) return;
     const userId = interaction.user.id;
-    const user = await getUser(userId);
 
     if (interaction.isChatInputCommand()) {
         const { commandName } = interaction;
 
+        // HATA ÇÖZÜMÜ: Discord'a beklemesini söyle (3 saniye sınırını aşmamak için)
+        await interaction.deferReply({ ephemeral: true });
+        
+        const user = await getUser(userId);
+
         if (commandName === 'gorev-al') {
-            if (missions.has(userId)) return interaction.reply({ content: '❌ Zaten aktif bir görevin var!', ephemeral: true });
+            if (missions.has(userId)) return interaction.editReply({ content: '❌ Zaten aktif bir görevin var!' });
             
-            const mission = generateMission(); // Rastgele görev üret
+            const mission = generateMission();
             missions.set(userId, mission);
 
             const dmEmbed = new EmbedBuilder()
@@ -194,16 +198,20 @@ client.on('interactionCreate', async (interaction) => {
 
             try {
                 await interaction.user.send({ embeds: [dmEmbed] });
-                interaction.reply({ content: '📩 Görev DM\'den gönderildi. Kanala bakma, aç oku!', ephemeral: true });
+                interaction.editReply({ content: '📩 Görev DM\'den gönderildi. Kanala bakma, aç oku!' });
             } catch (e) {
-                interaction.reply({ content: '❌ DM kutun kapalı!', ephemeral: true });
+                interaction.editReply({ content: '❌ DM kutun kapalı olduğu için görev gönderilemedi! Lütfen DM ayarlarını aç.' });
                 missions.delete(userId);
             }
         }
 
         if (commandName === 'gorev-iptal') {
-            if (missions.has(userId)) { missions.delete(userId); interaction.reply({ content: '🗑️ Görev iptal edildi.', ephemeral: true }); }
-            else { interaction.reply({ content: 'Zaten aktif görevin yok.', ephemeral: true }); }
+            if (missions.has(userId)) { 
+                missions.delete(userId); 
+                interaction.editReply({ content: '🗑️ Görev iptal edildi.' }); 
+            } else { 
+                interaction.editReply({ content: 'Zaten aktif görevin yok.' }); 
+            }
         }
 
         if (commandName === 'profil') {
@@ -215,7 +223,7 @@ client.on('interactionCreate', async (interaction) => {
                     { name: '🎯 Biten Görev', value: `**${user.completed || 0}**`, inline: true },
                     { name: '🚀 İlerleme', value: getProgressBar(user.ap), inline: false }
                 ).setThumbnail(interaction.user.displayAvatarURL());
-            interaction.reply({ embeds: [embed] });
+            interaction.editReply({ embeds: [embed] });
         }
 
         if (commandName === 'liderlik') {
@@ -231,24 +239,29 @@ client.on('interactionCreate', async (interaction) => {
                 }
             }
             const embed = new EmbedBuilder().setColor('#f1c40f').setTitle('🏆 EN İYİ AJANLAR').setDescription(desc);
-            interaction.reply({ embeds: [embed] });
+            interaction.editReply({ embeds: [embed] });
         }
 
         if (commandName === 'market') {
             const options = Object.entries(marketItems).map(([id, item]) => ({ label: item.name, description: `${item.price} AP - ${item.desc}`, value: id }));
             const select = new StringSelectMenuBuilder().setCustomId('market_buy').setPlaceholder('Satın almak istediğin eşyayı seç...').addOptions(options);
             const embed = new EmbedBuilder().setColor('#2ecc71').setTitle('🛒 AJAN MARKETİ').setDescription(`💰 **Mevcut Bakiyen:** \`${user.ap} AP\`\n\nAşağıdaki menüden eşya seç!`);
-            interaction.reply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
+            interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] });
         }
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'market_buy') {
+        await interaction.deferUpdate(); // Menü için bekleme
+        const user = await getUser(userId);
         const itemId = interaction.values[0]; const item = marketItems[itemId];
-        if (user.ap < item.price) return interaction.reply({ content: `❌ Yetersiz AP! Gereken: **${item.price} AP**`, ephemeral: true });
+        if (user.ap < item.price) return interaction.followUp({ content: `❌ Yetersiz AP! Gereken: **${item.price} AP**`, ephemeral: true });
+        
         user.ap -= item.price; await saveUser(userId, user);
         if (itemId === 'takma_ad') interaction.member.setNickname(`${interaction.user.username} ⚽`).catch(()=>null);
+        
         const embed = new EmbedBuilder().setColor('#2ecc71').setTitle('✅ İŞLEM BAŞARILI').setDescription(`**${item.name}** satın alındı!\n💰 **Kalan AP:** \`${user.ap}\``);
-        interaction.reply({ embeds: [embed], ephemeral: true });
+        interaction.followUp({ embeds: [embed], ephemeral: true });
+        
         if (['kirmizi_kart', 'bomba_pasla', 'gozdagi'].includes(itemId)) interaction.channel.send(`🚨 **AJAN OPERASYONU!** ${interaction.user} marketten **${item.name}** aldı!`);
     }
 });
@@ -377,3 +390,4 @@ async function completeMission(userId, mission, contextMessage) {
 }
 
 client.login(process.env.AJAN_TOKEN || process.env.DISCORD_TOKEN);
+
