@@ -21,9 +21,6 @@ jobs:
         with:
           node-version: '24'
 
-      # ═══════════════════════════════════════════════════════════
-      #  SİSTEM DEBUG
-      # ═══════════════════════════════════════════════════════════
       - name: "🔍 Sistem bilgisi"
         run: |
           echo "════════════════════════════════════════════════════"
@@ -53,9 +50,6 @@ jobs:
         working-directory: ./MusicBot-main
         run: npm install --no-audit --no-fund
 
-      # ═══════════════════════════════════════════════════════════
-      #  KRİTİK: Voice 0.18.0 (DAVE çalışan sürüm)
-      # ═══════════════════════════════════════════════════════════
       - name: "🎵 Discord.js + Voice 0.18.0 (DAVE fix)"
         working-directory: ./MusicBot-main
         run: |
@@ -164,6 +158,34 @@ jobs:
             echo "SHARD_RESPAWN=true"
             echo "DEBUG_VOICE=true"
           } > .env
+
+      - name: "🔧 Voice patch (DAVE off + timeout 30s + stateChange log)"
+        working-directory: ./MusicBot-main
+        run: |
+          node <<'NODEEOF'
+          const fs = require("fs");
+          const p = "src/MusicPlayer.js";
+          let c = fs.readFileSync(p, "utf8");
+          const changed = [];
+
+          if (!c.includes("daveEncryption")) {
+            const before = c;
+            c = c.replace(/joinVoiceChannel\s*\(\s*\{/, (m) => m + "\n            daveEncryption: false,");
+            if (c !== before) changed.push("daveEncryption:false");
+          }
+
+          const before1 = c;
+          c = c.replace(/(entersState\([^,]+,\s*VoiceConnectionStatus\.Ready\s*,\s*)15_000/, "$130_000");
+          if (c !== before1) changed.push("timeout:30s");
+
+          if (!c.includes("_stateLoggerAttached")) {
+            c = c.replace(/(async\s+connect\s*\([^)]*\)\s*\{)/, "$1\n            if (this.connection && !this._stateLoggerAttached) { this._stateLoggerAttached = true; this.connection.on('stateChange', (o, n) => console.log('[Voice]', o.status, '->', n.status)); }");
+            changed.push("stateChange log");
+          }
+
+          fs.writeFileSync(p, c);
+          console.log("✅ MusicPlayer.js patched:", changed.join(", ") || "değişiklik yok");
+          NODEEOF
 
       - name: "🚀 Botu çalıştır"
         working-directory: ./MusicBot-main
