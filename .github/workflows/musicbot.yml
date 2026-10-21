@@ -21,9 +21,6 @@ jobs:
         with:
           node-version: '24'
 
-      # ═══════════════════════════════════════════════════════════
-      #  SİSTEM DEBUG
-      # ═══════════════════════════════════════════════════════════
       - name: "🔍 Sistem bilgisi"
         run: |
           echo "════════════════════════════════════════════════════"
@@ -53,9 +50,6 @@ jobs:
         working-directory: ./MusicBot-main
         run: npm install --no-audit --no-fund
 
-      # ═══════════════════════════════════════════════════════════
-      #  KRİTİK: Voice 0.18.0 (DAVE çalışan sürüm)
-      # ═══════════════════════════════════════════════════════════
       - name: "🎵 Discord.js + Voice 0.18.0 (DAVE fix)"
         working-directory: ./MusicBot-main
         run: |
@@ -164,6 +158,59 @@ jobs:
             echo "SHARD_RESPAWN=true"
             echo "DEBUG_VOICE=true"
           } > .env
+
+      - name: "🧹 Bozuk satırları temizle"
+        working-directory: ./MusicBot-main
+        run: |
+          node <<'NODEEOF'
+          const fs = require("fs");
+          const p = "src/MusicPlayer.js";
+          const lines = fs.readFileSync(p, "utf8").split("\n");
+          const before = lines.length;
+          const cleaned = lines.filter(l =>
+            !l.includes("console.log([Voice]") &&
+            !l.includes("_stateLoggerAttached")
+          );
+          fs.writeFileSync(p, cleaned.join("\n"));
+          console.log("CLEAN:", before - cleaned.length, "satır silindi");
+          NODEEOF
+          echo "── Sözdizimi kontrolü ──"
+          node --check src/MusicPlayer.js && echo "✅ MusicPlayer.js sözdizimi geçerli" || {
+            echo "❌ Hâlâ bozuk — repoyu manuel temizlemen gerekiyor"
+            exit 1
+          }
+
+      - name: "🔧 Voice patch (DAVE off + timeout 30s)"
+        working-directory: ./MusicBot-main
+        run: |
+          node <<'NODEEOF'
+          const fs = require("fs");
+          const p = "src/MusicPlayer.js";
+          let c = fs.readFileSync(p, "utf8");
+          const changed = [];
+
+          if (!c.includes("daveEncryption")) {
+            const i = c.indexOf("joinVoiceChannel(");
+            if (i >= 0) {
+              const j = c.indexOf("{", i);
+              if (j >= 0) {
+                c = c.slice(0, j + 1) + "\n            daveEncryption: false," + c.slice(j + 1);
+                changed.push("daveEncryption:false");
+              }
+            }
+          }
+
+          if (c.includes("15_000")) {
+            c = c.split("15_000").join("30_000");
+            changed.push("timeout:30s");
+          }
+
+          fs.writeFileSync(p, c);
+          console.log("PATCH RESULT:", changed.length ? changed.join(", ") : "no change");
+          NODEEOF
+          echo "── Patch sonrası kontrol ──"
+          grep -n "daveEncryption\|30_000" src/MusicPlayer.js | head -10 || true
+          node --check src/MusicPlayer.js && echo "✅ Patch sonrası sözdizimi geçerli" || exit 1
 
       - name: "🚀 Botu çalıştır"
         working-directory: ./MusicBot-main
