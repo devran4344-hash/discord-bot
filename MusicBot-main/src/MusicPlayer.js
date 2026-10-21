@@ -1,4 +1,4 @@
-const {
+﻿const {
     AudioPlayerStatus,
     createAudioPlayer,
     createAudioResource,
@@ -422,7 +422,6 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
         
         if (this.connection && !this._stateLoggerAttached) {
             this._stateLoggerAttached = true;
-            this.connection.on('stateChange', (o, n) => console.log([Voice]  -> ));
         }
 try {
             // Wait for guild's WebSocket to be ready (critical for sharding)
