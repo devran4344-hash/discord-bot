@@ -252,8 +252,10 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
 
             // Try to auto-reconnect immediately for network disconnections
             try {
+                console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
                 await entersState(this.connection, VoiceConnectionStatus.Connecting, 5000);
                 // If we get here, Discord is trying to reconnect automatically
+                console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
                 await entersState(this.connection, VoiceConnectionStatus.Ready, 10000);
 
             } catch (error) {
@@ -378,6 +380,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
 
             // Create new connection
             this.connection = joinVoiceChannel({
+            daveEncryption: false,
                 channelId: this.voiceChannel.id,
                 guildId: this.guild.id,
                 adapterCreator: this.guild.voiceAdapterCreator,
@@ -390,7 +393,8 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
             this.connection.subscribe(this.audioPlayer);
 
             // Wait for connection to be ready
-            await entersState(this.connection, VoiceConnectionStatus.Ready, 15000);
+            console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
+            await entersState(this.connection, VoiceConnectionStatus.Ready, 30000);
             return true;
         } catch (error) {
             console.error('❌ Force reconnect failed:', error);
@@ -415,7 +419,12 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
     }
 
     async connect() {
-        try {
+        
+        if (this.connection && !this._stateLoggerAttached) {
+            this._stateLoggerAttached = true;
+            this.connection.on('stateChange', (o, n) => console.log([Voice]  -> ));
+        }
+try {
             // Wait for guild's WebSocket to be ready (critical for sharding)
             if (!this.guild.voiceAdapterCreator) {
                 // Wait up to 10 seconds for the adapter to become available
@@ -445,6 +454,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
             }
 
             this.connection = joinVoiceChannel({
+            daveEncryption: false,
                 channelId: this.voiceChannel.id,
                 guildId: this.guild.id,
                 adapterCreator: this.guild.voiceAdapterCreator,
@@ -456,6 +466,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
             this.connection.subscribe(this.audioPlayer);
 
             // Wait for connection to be ready
+            console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
             await entersState(this.connection, VoiceConnectionStatus.Ready, 30000);
             return true;
         } catch (error) {
@@ -477,7 +488,9 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
                     selfMute: false
                 });
 
-                await entersState(this.connection, VoiceConnectionStatus.Ready, 15000);
+                console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
+
+                await entersState(this.connection, VoiceConnectionStatus.Ready, 30000);
                 return true;
             } catch (error) {
                 console.error('❌ Failed to rejoin new voice channel:', error);
