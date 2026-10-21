@@ -159,7 +159,7 @@ jobs:
             echo "DEBUG_VOICE=true"
           } > .env
 
-      - name: "🔧 Voice patch (DAVE off + timeout 30s + stateChange log)"
+      - name: "🔧 Voice patch (DAVE off + timeout 30s)"
         working-directory: ./MusicBot-main
         run: |
           node <<'NODEEOF'
@@ -169,23 +169,26 @@ jobs:
           const changed = [];
 
           if (!c.includes("daveEncryption")) {
-            const before = c;
-            c = c.replace(/joinVoiceChannel\s*\(\s*\{/, (m) => m + "\n            daveEncryption: false,");
-            if (c !== before) changed.push("daveEncryption:false");
+            const i = c.indexOf("joinVoiceChannel(");
+            if (i >= 0) {
+              const j = c.indexOf("{", i);
+              if (j >= 0) {
+                c = c.slice(0, j + 1) + "\n            daveEncryption: false," + c.slice(j + 1);
+                changed.push("daveEncryption:false");
+              }
+            }
           }
 
-          const before1 = c;
-          c = c.replace(/(entersState\([^,]+,\s*VoiceConnectionStatus\.Ready\s*,\s*)15_000/, "$130_000");
-          if (c !== before1) changed.push("timeout:30s");
-
-          if (!c.includes("_stateLoggerAttached")) {
-            c = c.replace(/(async\s+connect\s*\([^)]*\)\s*\{)/, "$1\n            if (this.connection && !this._stateLoggerAttached) { this._stateLoggerAttached = true; this.connection.on('stateChange', (o, n) => console.log('[Voice]', o.status, '->', n.status)); }");
-            changed.push("stateChange log");
+          if (c.includes("15_000")) {
+            c = c.split("15_000").join("30_000");
+            changed.push("timeout:30s");
           }
 
           fs.writeFileSync(p, c);
-          console.log("✅ MusicPlayer.js patched:", changed.join(", ") || "değişiklik yok");
+          console.log("PATCH RESULT:", changed.length ? changed.join(", ") : "no change");
           NODEEOF
+          echo "── Patch sonrası kontrol ──"
+          grep -n "daveEncryption\|30_000" src/MusicPlayer.js | head -10 || true
 
       - name: "🚀 Botu çalıştır"
         working-directory: ./MusicBot-main
