@@ -1070,7 +1070,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
                         args: [
                             ...seekArgs,
                             '-analyzeduration', '0',
-                            '-loglevel', '0',
+                            '-loglevel', 'error',
                             '-i', 'pipe:0',
                             ...filterArgs,
                             '-f', 's16le',
@@ -1079,7 +1079,18 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
                         ]
                     });
 
-                    ffmpegProcess.on('error', (err) => {
+                    try {
+                    const __fs = require('fs');
+                    const __exists = __fs.existsSync(downloadedFile);
+                    console.log('[DIAG] ffmpegPath:', ffmpegPath);
+                    console.log('[DIAG] file:', downloadedFile, '| exists:', __exists, '| size:', __exists ? __fs.statSync(downloadedFile).size : 'N/A');
+                    if (ffmpegProcess.process) {
+                        ffmpegProcess.process.stderr.on('data', d => console.error('[FFmpeg stderr]', d.toString().trim()));
+                        ffmpegProcess.process.on('exit', (code, sig) => console.log('[FFmpeg exit] code:', code, 'sig:', sig));
+                    }
+                } catch (e) { console.error('[DIAG]', e.message); }
+
+                ffmpegProcess.on('error', (err) => {
                         if (err.message && err.message.includes('Premature close')) return;
                         console.error('❌ FFmpeg streaming error:', err.message);
                     });
@@ -1113,13 +1124,24 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
                         ...seekArgs,  // Add seek BEFORE input for faster seeking
                         '-i', downloadedFile,
                         '-analyzeduration', '0',
-                        '-loglevel', '0',
+                        '-loglevel', 'error',
                         ...(() => { const f = this.buildAudioFilter(); return f ? ['-af', f] : []; })(),
                         '-f', 's16le',
                         '-ar', '48000',
                         '-ac', '2'
                     ]
                 });
+
+                try {
+                    const __fs = require('fs');
+                    const __exists = __fs.existsSync(downloadedFile);
+                    console.log('[DIAG] ffmpegPath:', ffmpegPath);
+                    console.log('[DIAG] file:', downloadedFile, '| exists:', __exists, '| size:', __exists ? __fs.statSync(downloadedFile).size : 'N/A');
+                    if (ffmpegProcess.process) {
+                        ffmpegProcess.process.stderr.on('data', d => console.error('[FFmpeg stderr]', d.toString().trim()));
+                        ffmpegProcess.process.on('exit', (code, sig) => console.log('[FFmpeg exit] code:', code, 'sig:', sig));
+                    }
+                } catch (e) { console.error('[DIAG]', e.message); }
 
                 ffmpegProcess.on('error', (err) => {
                     if (err.message && err.message.includes('Premature close')) return;
@@ -1145,7 +1167,9 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
 
             // Set volume
             if (this.resource.volume) {
-                this.resource.volume.setVolume(this.volume / 100);
+                const __vol = (typeof this.volume === 'number' && !isNaN(this.volume)) ? this.volume : 100;
+                console.log('[DIAG] volume raw:', this.volume, '| applied:', __vol);
+                this.resource.volume.setVolume(__vol / 100);
             }
 
             // Update track duration from stream info if available
