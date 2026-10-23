@@ -4,3 +4,5 @@ medya-ayar.json
 config.json
 .env
 *.log
+# translate config (tracked)
+!src/translate/config.json

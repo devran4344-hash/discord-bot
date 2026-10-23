@@ -1,12 +1,24 @@
-// events/messageTranslate.js (v3)
+// events/messageTranslate.js (v3.1 - config fallback)
 // Ingiliz oyuncu yazar -> mesaj silinir, EN+TR embed atilir
 // Turk oyuncu Ingilizi etiketleyerek yazar -> mesaj silinir, TR+EN embed + mention
 const { Events, EmbedBuilder } = require('discord.js');
 const { translateMessage } = require('../src/translate/translator');
-const config = require('../src/translate/config.json');
 
-const englishSpeakers = new Set((config.englishSpeakers || []).map(String));
-const allowedChannels = new Set((config.allowedChannels || []).map(String));
+let config = { englishSpeakers: [], allowedChannels: [], autoDeleteEmbedMs: 0 };
+try {
+  const loaded = require('../src/translate/config.json');
+  config = {
+    englishSpeakers: Array.isArray(loaded.englishSpeakers) ? loaded.englishSpeakers : [],
+    allowedChannels: Array.isArray(loaded.allowedChannels) ? loaded.allowedChannels : [],
+    autoDeleteEmbedMs: Number(loaded.autoDeleteEmbedMs) || 0
+  };
+  console.log('[translate] config yuklendi. Ingiliz oyuncu sayisi:', config.englishSpeakers.length);
+} catch (e) {
+  console.warn('[translate] config.json bulunamadi, bos listeyle devam ediliyor:', e.message);
+}
+
+const englishSpeakers = new Set(config.englishSpeakers.map(String));
+const allowedChannels = new Set(config.allowedChannels.map(String));
 const AUTO_DELETE_MS = Number(config.autoDeleteEmbedMs) || 0;
 const MAX_FIELD = 1020;
 
@@ -27,7 +39,6 @@ module.exports = {
 
     const isEnglishAuthor = englishSpeakers.has(message.author.id);
 
-    // Etiketlenen / yanitlanan Ingiliz oyunculari topla
     const englishTargets = [];
     if (message.mentions && message.mentions.users) {
       for (const [id] of message.mentions.users) {
@@ -44,14 +55,12 @@ module.exports = {
     else if (englishTargets.length > 0) direction = 'tr-en';
     else return;
 
-    // Once ceviriyi al — hata olursa mesaj silinmesin
     const translated = await translateMessage(message.content, direction);
     if (!translated) return;
     if (translated.trim() === message.content.trim()) return;
 
-    // Silme izni var mi?
     if (!message.deletable) {
-      console.warn('[translate] mesaji silemiyorum (izin yok), atlaniyor:', message.id);
+      console.warn('[translate] mesaji silemiyorum (izin yok):', message.id);
       return;
     }
 
@@ -79,15 +88,9 @@ module.exports = {
         .setFooter({ text: 'TR → EN' });
     }
 
-    // Orijinal mesaji sil
-    try {
-      await message.delete();
-    } catch (e) {
-      console.error('[translate] delete failed:', e.message);
-      return;
-    }
+    try { await message.delete(); }
+    catch (e) { console.error('[translate] delete failed:', e.message); return; }
 
-    // Embed'i gonder
     const mentionLine = direction === 'tr-en'
       ? englishTargets.map((id) => '<@' + id + '>').join(' ')
       : undefined;
@@ -107,11 +110,8 @@ module.exports = {
       return;
     }
 
-    // Istege bagli: embed'i belli sure sonra sil
     if (AUTO_DELETE_MS > 0 && sent) {
-      setTimeout(() => {
-        sent.delete().catch(() => {});
-      }, AUTO_DELETE_MS);
+      setTimeout(() => { sent.delete().catch(() => {}); }, AUTO_DELETE_MS);
     }
   }
 };

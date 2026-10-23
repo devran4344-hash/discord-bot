@@ -4,3 +4,5 @@ medya-ayar.json
 config.json
 .env
 *.log
+# modbot translate config (tracked)
+!modbot/src/translate/config.json
