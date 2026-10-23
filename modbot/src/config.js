@@ -214,7 +214,7 @@ module.exports = {
     enabled:      true,
     blockInvites: true,
     whitelist: [
-      'discord.com', 'discordapp.com',
+      'roblox.com', 'discord.com', 'discordapp.com',
       'youtube.com', 'youtu.be', 'twitch.tv', 'spotify.com', 'soundcloud.com',
       'giphy.com', 'tenor.com', 'imgur.com', 'klipy.com', 'gfycat.com',
       'reddit.com', 'pinterest.com', 'tumblr.com',
