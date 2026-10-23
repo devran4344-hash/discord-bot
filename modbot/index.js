@@ -1,7 +1,7 @@
-// ╔═══════════════════════════════════════════════════════════════╗
-// ║                    MODBOT - ANA DOSYA                        ║
-// ║              Kapsamlı Discord Moderasyon Botu                ║
-// ╚═══════════════════════════════════════════════════════════════╝
+// â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+// â•‘                    MODBOT - ANA DOSYA                        â•‘
+// â•‘              KapsamlÄ± Discord Moderasyon Botu                â•‘
+// â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 require('dotenv').config();
 const {
@@ -16,7 +16,7 @@ const path = require('path');
 const chalk = require('chalk');
 const moment = require('moment');
 
-// ─── Uptime / Kapanma Logu ───────────────────────────────────────
+// â”€â”€â”€ Uptime / Kapanma Logu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const logDir = path.join(__dirname, 'logs');
 const uptimeFile = path.join(logDir, 'uptime.json');
 if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
@@ -34,7 +34,7 @@ function saveUptimeData(data) {
 const uptimeData = loadUptimeData();
 const sessionStartTime = new Date();
 
-// Önceki oturumun kapanış zamanını güncelle
+// Ã–nceki oturumun kapanÄ±ÅŸ zamanÄ±nÄ± gÃ¼ncelle
 if (uptimeData.sessions.length > 0) {
   const lastSession = uptimeData.sessions[uptimeData.sessions.length - 1];
   if (!lastSession.endTime) {
@@ -43,7 +43,7 @@ if (uptimeData.sessions.length > 0) {
   }
 }
 
-// Yeni oturum başlat
+// Yeni oturum baÅŸlat
 const currentSession = {
   id: uptimeData.sessions.length + 1,
   startTime: sessionStartTime.toISOString(),
@@ -53,7 +53,7 @@ const currentSession = {
 uptimeData.sessions.push(currentSession);
 saveUptimeData(uptimeData);
 
-// ─── Client Oluştur ──────────────────────────────────────────────
+// â”€â”€â”€ Client OluÅŸtur â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -82,7 +82,7 @@ const client = new Client({
   ],
 });
 
-// ─── Collections ─────────────────────────────────────────────────
+// â”€â”€â”€ Collections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 client.commands = new Collection();
 client.aliases  = new Collection();
 client.cooldowns = new Collection();
@@ -90,13 +90,13 @@ client.sessionStart = sessionStartTime;
 client.uptimeData = uptimeData;
 client.currentSession = currentSession;
 
-// ─── Komut Yükleyici ─────────────────────────────────────────────
+// â”€â”€â”€ Komut YÃ¼kleyici â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const commandFolders = fs.readdirSync(path.join(__dirname, 'src', 'commands'));
 let loadedCommands = 0;
 
-console.log(chalk.cyan('\n╔══════════════════════════════════════╗'));
-console.log(chalk.cyan('║         MODBOT Yükleniyor...         ║'));
-console.log(chalk.cyan('╚══════════════════════════════════════╝\n'));
+console.log(chalk.cyan('\nâ•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—'));
+console.log(chalk.cyan('â•‘         MODBOT YÃ¼kleniyor...         â•‘'));
+console.log(chalk.cyan('â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\n'));
 
 for (const folder of commandFolders) {
   const commandFiles = fs
@@ -112,22 +112,22 @@ for (const folder of commandFolders) {
       command.aliases.forEach((alias) => client.aliases.set(alias, command.name));
     }
     loadedCommands++;
-    console.log(chalk.green(`  ✓ Komut yüklendi: ${chalk.white(command.name)}`));
+    console.log(chalk.green(`  âœ“ Komut yÃ¼klendi: ${chalk.white(command.name)}`));
   }
 }
 
-// ─── Event Yükleyici ─────────────────────────────────────────────
+// â”€â”€â”€ Event YÃ¼kleyici â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const eventFiles = fs
   .readdirSync(path.join(__dirname, 'src', 'events'))
   .filter((f) => f.endsWith('.js'));
 
-// Array event dosyaları (birden fazla event içerir)
+// Array event dosyalarÄ± (birden fazla event iÃ§erir)
 const ARRAY_EVENT_FILES = ['channelEvents.js', 'roleEvents.js', 'guildUpdate.js', 'reactionEvents.js'];
 
 for (const file of eventFiles) {
   if (ARRAY_EVENT_FILES.includes(file)) {
-    // Bu dosyalar ready.js içinde yükleniyor, atla
-    console.log(chalk.magenta(`  ⏩ Array event (ready'de yüklenir): ${chalk.white(file)}`));
+    // Bu dosyalar ready.js iÃ§inde yÃ¼kleniyor, atla
+    console.log(chalk.magenta(`  â© Array event (ready'de yÃ¼klenir): ${chalk.white(file)}`));
     continue;
   }
   const event = require(path.join(__dirname, 'src', 'events', file));
@@ -136,55 +136,55 @@ for (const file of eventFiles) {
   } else {
     client.on(event.name, (...args) => event.execute(...args, client));
   }
-  console.log(chalk.blue(`  ✓ Event yüklendi: ${chalk.white(event.name)}`));
+  console.log(chalk.blue(`  âœ“ Event yÃ¼klendi: ${chalk.white(event.name)}`));
 }
 
-// ─── Anti-Raid Sistem ─────────────────────────────────────────────
+// â”€â”€â”€ Anti-Raid Sistem â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const antiRaidSystem = require(path.join(__dirname, 'src', 'systems', 'antiRaid'));
 client.on(antiRaidSystem.name, (...args) => antiRaidSystem.execute(...args, client));
-console.log(chalk.blue(`  ✓ Sistem yüklendi: ${chalk.white('antiRaid')}`))
+console.log(chalk.blue(`  âœ“ Sistem yÃ¼klendi: ${chalk.white('antiRaid')}`))
 
-// ─── Davet Tracker ────────────────────────────────────────────────
+// â”€â”€â”€ Davet Tracker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const inviteTracker = require(path.join(__dirname, 'src', 'systems', 'inviteTracker'));
 client.on('inviteCreate', invite => inviteTracker.handleInviteCreate(invite));
 client.on('inviteDelete', invite => inviteTracker.handleInviteDelete(invite));
-console.log(chalk.blue(`  ✓ Sistem yüklendi: ${chalk.white('inviteTracker')}`));
+console.log(chalk.blue(`  âœ“ Sistem yÃ¼klendi: ${chalk.white('inviteTracker')}`));
 
-// ─── Reaction Role ─────────────────────────────────────────────────
+// â”€â”€â”€ Reaction Role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const reactionRole = require(path.join(__dirname, 'src', 'systems', 'reactionRole'));
 client.commands.set(reactionRole.name, reactionRole);
 if (reactionRole.aliases) reactionRole.aliases.forEach(a => client.aliases.set(a, reactionRole.name));
 client._rrHandler = reactionRole.handleButton;
 loadedCommands++;
-console.log(chalk.green(`  ✓ Komut yüklendi: ${chalk.white(reactionRole.name)}`));
+console.log(chalk.green(`  âœ“ Komut yÃ¼klendi: ${chalk.white(reactionRole.name)}`));
 
-// ─── Cron Jobs ─────────────────────────────────────────────────────
+// â”€â”€â”€ Cron Jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const { startAllCrons } = require(path.join(__dirname, 'src', 'systems', 'cronJobs'));
 client.once('clientReady', () => {
   startAllCrons(client);
   client.guilds.cache.forEach(guild => inviteTracker.loadInvites(guild));
 });
-console.log(chalk.blue(`  ✓ Sistem yüklendi: ${chalk.white('cronJobs')}`));console.log(chalk.yellow(`\n  Toplam ${loadedCommands} komut yüklendi.`));
-console.log(chalk.yellow(`  Toplam ${eventFiles.length} event yüklendi.\n`));
+console.log(chalk.blue(`  âœ“ Sistem yÃ¼klendi: ${chalk.white('cronJobs')}`));console.log(chalk.yellow(`\n  Toplam ${loadedCommands} komut yÃ¼klendi.`));
+console.log(chalk.yellow(`  Toplam ${eventFiles.length} event yÃ¼klendi.\n`));
 
-// ─── Hata Yakalayıcı ─────────────────────────────────────────────
+// â”€â”€â”€ Hata YakalayÄ±cÄ± â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 process.on('unhandledRejection', (error) => {
-  console.error(chalk.red('\n[HATA] İşlenmeyen Promise hatası:'), error);
+  console.error(chalk.red('\n[HATA] Ä°ÅŸlenmeyen Promise hatasÄ±:'), error);
   const errorLog = path.join(logDir, 'errors.log');
   const errorEntry = `[${moment().format('DD.MM.YYYY HH:mm:ss')}] UnhandledRejection: ${error.stack || error}\n`;
   fs.appendFileSync(errorLog, errorEntry);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error(chalk.red('\n[KRİTİK HATA] Yakalanmayan istisna:'), error);
+  console.error(chalk.red('\n[KRÄ°TÄ°K HATA] Yakalanmayan istisna:'), error);
   const errorLog = path.join(logDir, 'errors.log');
   const errorEntry = `[${moment().format('DD.MM.YYYY HH:mm:ss')}] UncaughtException: ${error.stack || error}\n`;
   fs.appendFileSync(errorLog, errorEntry);
 });
 
-// ─── Kapanma Logu ────────────────────────────────────────────────
+// â”€â”€â”€ Kapanma Logu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function gracefulShutdown(signal) {
-  console.log(chalk.red(`\n[KAPANIŞ] ${signal} sinyali alındı. Bot kapatılıyor...`));
+  console.log(chalk.red(`\n[KAPANIÅ] ${signal} sinyali alÄ±ndÄ±. Bot kapatÄ±lÄ±yor...`));
 
   currentSession.endTime = new Date().toISOString();
   currentSession.status = 'graceful';
@@ -195,20 +195,20 @@ function gracefulShutdown(signal) {
   const shutdownLog = path.join(logDir, 'shutdown.log');
   fs.appendFileSync(
     shutdownLog,
-    `[${moment().format('DD.MM.YYYY HH:mm:ss')}] Bot kapatıldı. Sinyal: ${signal} | Uptime: ${currentSession.uptime}\n`,
+    `[${moment().format('DD.MM.YYYY HH:mm:ss')}] Bot kapatÄ±ldÄ±. Sinyal: ${signal} | Uptime: ${currentSession.uptime}\n`,
   );
 
-  // Discord'a bildir (eğer bağlıysa)
+  // Discord'a bildir (eÄŸer baÄŸlÄ±ysa)
   const config = require('./src/config');
   if (client.isReady() && config.channels?.botLog) {
     const { EmbedBuilder } = require('discord.js');
     const embed = new EmbedBuilder()
-      .setTitle('🔴 Bot Kapatıldı')
+      .setTitle('ğŸ”´ Bot KapatÄ±ldÄ±')
       .setColor(0xff0000)
       .addFields(
-        { name: '⏰ Kapanış Zamanı', value: moment().format('DD.MM.YYYY HH:mm:ss'), inline: true },
-        { name: '⏱️ Çalışma Süresi', value: currentSession.uptime, inline: true },
-        { name: '📡 Sinyal', value: signal, inline: true },
+        { name: 'â° KapanÄ±ÅŸ ZamanÄ±', value: moment().format('DD.MM.YYYY HH:mm:ss'), inline: true },
+        { name: 'â±ï¸ Ã‡alÄ±ÅŸma SÃ¼resi', value: currentSession.uptime, inline: true },
+        { name: 'ğŸ“¡ Sinyal', value: signal, inline: true },
       )
       .setTimestamp();
 
@@ -227,22 +227,24 @@ function gracefulShutdown(signal) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// ─── Firebase Başlat ─────────────────────────────────────────────
+// â”€â”€â”€ Firebase BaÅŸlat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const { initFirebase } = require('./src/utils/database');
 try {
   initFirebase();
-  console.log(chalk.green('[firebase] ✅ Firebase başlatıldı'));
+  console.log(chalk.green('[firebase] âœ… Firebase baÅŸlatÄ±ldÄ±'));
 } catch (err) {
-  console.error(chalk.red('[firebase] ❌ Başlatma hatası:'), err.message);
+  console.error(chalk.red('[firebase] âŒ BaÅŸlatma hatasÄ±:'), err.message);
 }
-// ─── Login ────────────────────────────────────────────────────────
+// â”€â”€â”€ Login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const token = process.env.BOT_TOKEN;
 if (!token) {
-  console.error(chalk.red('[HATA] BOT_TOKEN bulunamadı! .env dosyasını kontrol et.'));
+  console.error(chalk.red('[HATA] BOT_TOKEN bulunamadÄ±! .env dosyasÄ±nÄ± kontrol et.'));
   process.exit(1);
 }
 
 client.login(token).catch((err) => {
-  console.error(chalk.red('[HATA] Giriş yapılamadı:'), err.message);
+  console.error(chalk.red('[HATA] GiriÅŸ yapÄ±lamadÄ±:'), err.message);
   process.exit(1);
 });
+// [translate auto-inject]
+try { require('./src/translate/autoinit')(client); } catch (e) { console.error('[translate] init error:', e); }
