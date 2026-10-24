@@ -12,9 +12,9 @@ module.exports = {
             const a1 = u1.displayAvatarURL({ extension: 'png', size: 512 });
             const a2 = u2.displayAvatarURL({ extension: 'png', size: 512 });
             
-            const bg = "https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png";
+            // Kalıcı ve silinmeyen arka plan resmi (Unsplash)
+            const bg = "https://i.imgur.com/jI1WIUh.jpeg";
             
-            // API'yi tatmin etmek için 'avatar' parametresini de ekledik
             const url = "https://elecus.dev/api/v1/ship?avatar=" + encodeURIComponent(a1) + 
                         "&avatar1=" + encodeURIComponent(a1) + 
                         "&avatar2=" + encodeURIComponent(a2) + 
@@ -39,3 +39,4 @@ module.exports = {
         }
     }
 };
+
