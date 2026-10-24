@@ -5,28 +5,34 @@
     TextInputStyle, 
     ActionRowBuilder,
     EmbedBuilder,
-    AttachmentBuilder
+    AttachmentBuilder,
+    MessageFlags
 } = require('discord.js');
 
 module.exports = {
     name: Events.InteractionCreate,
-    async execute(interaction) {
+    async execute(interaction, client) {
         
         // ==========================================
         // 1. SLASH KOMUTLARI DİNLE
         // ==========================================
         if (interaction.isChatInputCommand()) {
-            const command = interaction.client.commands.get(interaction.commandName);
+            const command = client.commands.get(interaction.commandName);
             if (!command) return;
 
             try {
-                await command.execute(interaction);
+                // KRİTİK DÜZELTME: client parametresi eklendi
+                await command.execute(interaction, client);
             } catch (error) {
-                console.error(error);
+                console.error(`[HATA] ${interaction.commandName} komutunda hata:`, error);
+                
+                // Ephemeral uyarısını çözmek için MessageFlags.Ephemeral kullanıyoruz
+                const replyOpts = { content: '❌ Komut çalıştırılırken hata oluştu!', flags: MessageFlags.Ephemeral };
+                
                 if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: '❌ Komut çalıştırılırken hata oluştu!', ephemeral: true });
+                    await interaction.followUp(replyOpts);
                 } else {
-                    await interaction.reply({ content: '❌ Komut çalıştırılırken hata oluştu!', ephemeral: true });
+                    await interaction.reply(replyOpts);
                 }
             }
             return;
@@ -67,7 +73,7 @@ module.exports = {
         // 3. KAYIT FORMU GÖNDERİLDİĞİNDE DİNLE
         // ==========================================
         if (interaction.isModalSubmit() && interaction.customId === 'kayit_modal') {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const isim = interaction.fields.getTextInputValue('kayit_isim');
             const yas = interaction.fields.getTextInputValue('kayit_yas');
@@ -75,13 +81,10 @@ module.exports = {
 
             try {
                 // BURAYA KENDİ ROL VE KANAL ID'LERİNİ GİR
-                const kayitliRolId = '123456789012345678'; // Kayıtlı rol ID'si
-                const welcomeChannelId = '123456789012345678'; // Hoş geldin kanal ID'si
+                const kayitliRolId = '123456789012345678'; 
+                const welcomeChannelId = '123456789012345678'; 
                 
-                // İsmi değiştir (örnek format: İsim | Yaş)
                 await member.setNickname(`${isim} | ${yas}`).catch(() => {});
-                
-                // Rolü ver
                 await member.roles.add(kayitliRolId).catch(() => {});
 
                 await interaction.editReply({ content: `✅ Başarıyla kayıt oldun! İsmin **${isim} | ${yas}** olarak güncellendi.` });
@@ -91,7 +94,7 @@ module.exports = {
                 if (welcomeChannel) {
                     try {
                         const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 1024 });
-                        const backgroundURL = 'https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png';
+                        const backgroundURL = 'https://i.imgur.com/jI1WIUh.jpeg'; // Senin Imgur linkin
 
                         const params = new URLSearchParams({
                             avatar: avatarURL,
@@ -125,4 +128,3 @@ module.exports = {
         }
     },
 };
-
