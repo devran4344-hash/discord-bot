@@ -1,5 +1,6 @@
 ﻿const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
+    name: 'discord_bilgi',
     data: new SlashCommandBuilder().setName('discord_bilgi').setDescription('Kullanıcının Discord bilgilerini gösterir')
         .addUserOption(opt => opt.setName('kullanici').setDescription('Bilgisi alınacak kullanıcı').setRequired(true)),
     async execute(interaction) {
@@ -19,3 +20,4 @@ module.exports = {
         } catch { await interaction.editReply('❌ API yanıt vermedi.'); }
     }
 };
+

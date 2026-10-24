@@ -1,5 +1,6 @@
 ﻿const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
+    name: 'reverse',
     data: new SlashCommandBuilder().setName('reverse').setDescription('Yazıyı ters çevirir')
         .addStringOption(opt => opt.setName('yazi').setDescription('Ters çevrilecek yazı').setRequired(true)),
     async execute(interaction) {
@@ -14,3 +15,4 @@ module.exports = {
         } catch { await interaction.editReply('❌ API yanıt vermedi.'); }
     }
 };
+

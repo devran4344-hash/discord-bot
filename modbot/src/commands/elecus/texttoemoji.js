@@ -1,5 +1,6 @@
 ﻿const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
+    name: 'texttoemoji',
     data: new SlashCommandBuilder().setName('texttoemoji').setDescription('Yazıyı emojiye çevirir')
         .addStringOption(opt => opt.setName('yazi').setDescription('Çevrilecek yazı').setRequired(true)),
     async execute(interaction) {
@@ -14,3 +15,4 @@ module.exports = {
         } catch { await interaction.editReply('❌ API yanıt vermedi.'); }
     }
 };
+

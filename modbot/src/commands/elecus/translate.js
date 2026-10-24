@@ -1,5 +1,6 @@
 ﻿const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 module.exports = {
+    name: 'translate',
     data: new SlashCommandBuilder().setName('translate').setDescription('Metni başka dile çevirir')
         .addStringOption(opt => opt.setName('yazi').setDescription('Çevrilecek metin').setRequired(true))
         .addStringOption(opt => opt.setName('dil').setDescription('Hedef dil (örn: en, tr, de)').setRequired(true)),
@@ -15,3 +16,4 @@ module.exports = {
         } catch { await interaction.editReply('❌ API yanıt vermedi.'); }
     }
 };
+
