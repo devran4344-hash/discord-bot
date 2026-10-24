@@ -1,23 +1,24 @@
 ﻿const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 module.exports = {
+    name: 'tweet',
     data: new SlashCommandBuilder().setName('tweet').setDescription('Sahte tweet oluşturur')
         .addUserOption(opt => opt.setName('kullanici').setDescription('Tweet atan kişi').setRequired(true))
-        .addStringOption(opt => opt.setName('kullaniciadi').setDescription('Twitter kullanıcı adı').setRequired(true))
-        .addStringOption(opt => opt.setName('mesaj').setDescription('Tweet metni').setRequired(true))
-        .addStringOption(opt => opt.setName('tema').setDescription('dark veya light').setRequired(true).addChoices({name: 'Karanlık', value: 'dark'}, {name: 'Aydınlık', value: 'light'})),
+        .addStringOption(opt => opt.setName('mesaj').setDescription('Tweet metni').setRequired(true)),
     async execute(interaction) {
         await interaction.deferReply();
-        const avatar = interaction.options.getUser('kullanici').displayAvatarURL({ extension: 'png', size: 512 });
-        const uname = interaction.options.getString('kullaniciadi');
-        const msg = interaction.options.getString('mesaj');
-        const theme = interaction.options.getString('tema');
-        
-        const url = `https://elecus.dev/api/v1/tweet?avatar=${encodeURIComponent(avatar)}&username=${encodeURIComponent(uname)}&username2=${encodeURIComponent(uname)}&message=${encodeURIComponent(msg)}&theme=${theme}`;
         try {
+            const u = interaction.options.getUser('kullanici');
+            const avatar = u.displayAvatarURL({ extension: 'png', size: 512 });
+            const msg = interaction.options.getString('mesaj');
+            const uname = u.username;
+            const theme = "dark"; // Sabit karanlık tema
+            
+            const url = https://elecus.dev/api/v1/tweet?avatar=\&username=\&username2=\&message=\&theme=\;
+            
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());
             await interaction.editReply({ files: [new AttachmentBuilder(buffer, { name: 'tweet.png' })] });
-        } catch { await interaction.editReply('❌ API yanıt vermedi.'); }
+        } catch (e) { await interaction.editReply('❌ API yanıt vermedi veya hata oluştu.'); }
     }
 };
