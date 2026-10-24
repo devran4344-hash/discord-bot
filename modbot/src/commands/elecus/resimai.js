@@ -7,7 +7,7 @@ module.exports = {
         await interaction.deferReply();
         try {
             const prompt = interaction.options.getString('prompt');
-            const url = https://elecus.dev/api/v1/resimai?prompt=\;
+            const url = "https://elecus.dev/api/v1/resimai?prompt=" + encodeURIComponent(prompt);
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

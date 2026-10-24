@@ -7,7 +7,7 @@ module.exports = {
         await interaction.deferReply();
         try {
             const id = interaction.options.getInteger('id');
-            const url = https://elecus.dev/api/v1/vadaa?id=\;
+            const url = "https://elecus.dev/api/v1/vadaa?id=" + id;
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

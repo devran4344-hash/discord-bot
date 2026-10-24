@@ -7,7 +7,7 @@ module.exports = {
         await interaction.deferReply();
         try {
             const yazi = interaction.options.getString('yazi');
-            const url = https://elecus.dev/api/v1/qr?yazi=\;
+            const url = "https://elecus.dev/api/v1/qr?yazi=" + encodeURIComponent(yazi);
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

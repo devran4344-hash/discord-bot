@@ -7,7 +7,7 @@ module.exports = {
         await interaction.deferReply();
         try {
             const soru = interaction.options.getString('soru');
-            const url = https://elecus.dev/api/v1/ai?soru=\;
+            const url = "https://elecus.dev/api/v1/ai?soru=" + encodeURIComponent(soru);
             const res = await fetch(url);
             const data = await res.json();
             const result = data.cevap || data.sonuc || data.text || JSON.stringify(data);

@@ -9,10 +9,7 @@ module.exports = {
         try {
             const a1 = interaction.options.getUser('kullanici1').displayAvatarURL({ extension: 'png', size: 512 });
             const a2 = interaction.options.getUser('kullanici2').displayAvatarURL({ extension: 'png', size: 512 });
-            const bg = "https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png"; // Sabit arka plan
-            const level = 85; // Sabit seviye
-            const url = https://elecus.dev/api/v1/ship?avatar1=\&avatar2=\&background=\&level=\;
-            
+            const url = "https://elecus.dev/api/v1/ship?avatar1=" + encodeURIComponent(a1) + "&avatar2=" + encodeURIComponent(a2) + "&background=" + encodeURIComponent("https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png") + "&level=85";
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

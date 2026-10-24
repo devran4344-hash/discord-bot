@@ -7,11 +7,11 @@ module.exports = {
         await interaction.deferReply();
         try {
             const id = interaction.options.getUser('kullanici').id;
-            const url = https://elecus.dev/api/v1/discord_bilgi?id=\;
+            const url = "https://elecus.dev/api/v1/discord_bilgi?id=" + id;
             const res = await fetch(url);
             const data = await res.json();
-            if(data.hata) return await interaction.editReply({ content: ❌ Hata: \ });
-            const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('Discord ID Bilgisi').setDescription(\\\json\n\\n\\\`);
+            if(data.hata) return await interaction.editReply({ content: '❌ Hata: ' + data.hata });
+            const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('Discord ID Bilgisi').setDescription('\\\\\\\\\json\n' + JSON.stringify(data, null, 2) + '\n\\\\\\\\\');
             await interaction.editReply({ embeds: [embed] });
         } catch (e) { await interaction.editReply('❌ API yanıt vermedi.'); }
     }

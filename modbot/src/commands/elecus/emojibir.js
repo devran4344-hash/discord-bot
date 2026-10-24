@@ -9,7 +9,7 @@ module.exports = {
         try {
             const e1 = interaction.options.getString('emoji1');
             const e2 = interaction.options.getString('emoji2');
-            const url = https://elecus.dev/api/v1/emojibir?emoji1=\&emoji2=\;
+            const url = "https://elecus.dev/api/v1/emojibir?emoji1=" + encodeURIComponent(e1) + "&emoji2=" + encodeURIComponent(e2);
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

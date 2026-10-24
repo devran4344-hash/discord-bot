@@ -7,7 +7,7 @@ module.exports = {
         await interaction.deferReply();
         try {
             const avatar = interaction.options.getUser('kullanici').displayAvatarURL({ extension: 'png', size: 512 });
-            const url = https://elecus.dev/api/v1/wanted?avatar=\;
+            const url = "https://elecus.dev/api/v1/wanted?avatar=" + encodeURIComponent(avatar);
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

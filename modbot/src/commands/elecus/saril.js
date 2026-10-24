@@ -9,8 +9,7 @@ module.exports = {
         try {
             const a1 = interaction.options.getUser('kullanici1').displayAvatarURL({ extension: 'png', size: 512 });
             const a2 = interaction.options.getUser('kullanici2').displayAvatarURL({ extension: 'png', size: 512 });
-            const url = https://elecus.dev/api/v1/saril?avatar1=\&avatar2=\;
-            
+            const url = "https://elecus.dev/api/v1/saril?avatar1=" + encodeURIComponent(a1) + "&avatar2=" + encodeURIComponent(a2);
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());

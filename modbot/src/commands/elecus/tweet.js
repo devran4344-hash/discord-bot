@@ -10,11 +10,7 @@ module.exports = {
             const u = interaction.options.getUser('kullanici');
             const avatar = u.displayAvatarURL({ extension: 'png', size: 512 });
             const msg = interaction.options.getString('mesaj');
-            const uname = u.username;
-            const theme = "dark"; // Sabit karanlık tema
-            
-            const url = https://elecus.dev/api/v1/tweet?avatar=\&username=\&username2=\&message=\&theme=\;
-            
+            const url = "https://elecus.dev/api/v1/tweet?avatar=" + encodeURIComponent(avatar) + "&username=" + encodeURIComponent(u.username) + "&username2=" + encodeURIComponent(u.username) + "&message=" + encodeURIComponent(msg) + "&theme=dark";
             const res = await fetch(url);
             if (!res.ok) throw new Error();
             const buffer = Buffer.from(await res.arrayBuffer());
