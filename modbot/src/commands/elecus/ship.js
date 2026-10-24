@@ -7,13 +7,35 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
         try {
-            const a1 = interaction.options.getUser('kullanici1').displayAvatarURL({ extension: 'png', size: 512 });
-            const a2 = interaction.options.getUser('kullanici2').displayAvatarURL({ extension: 'png', size: 512 });
-            const url = "https://elecus.dev/api/v1/ship?avatar1=" + encodeURIComponent(a1) + "&avatar2=" + encodeURIComponent(a2) + "&background=" + encodeURIComponent("https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png") + "&level=85";
+            const u1 = interaction.options.getUser('kullanici1');
+            const u2 = interaction.options.getUser('kullanici2');
+            const a1 = u1.displayAvatarURL({ extension: 'png', size: 512 });
+            const a2 = u2.displayAvatarURL({ extension: 'png', size: 512 });
+            
+            const bg = "https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png";
+            const shape = "heart"; // Kalp şeklinde yapıyoruz
+            
+            const url = "https://elecus.dev/api/v1/ship?avatar1=" + encodeURIComponent(a1) + 
+                        "&avatar2=" + encodeURIComponent(a2) + 
+                        "&background=" + encodeURIComponent(bg) + 
+                        "&name=" + encodeURIComponent(u1.username) + 
+                        "&name2=" + encodeURIComponent(u2.username) + 
+                        "&level=85&shape=" + shape;
+
             const res = await fetch(url);
-            if (!res.ok) throw new Error();
+            const contentType = res.headers.get('content-type');
+            
+            // Eğer API JSON (hata) döndürdüyse
+            if (contentType && contentType.includes('application/json')) {
+                const data = await res.json();
+                return await interaction.editReply({ content: '❌ API Hatası: ' + (data.hata || 'Bilinmeyen hata') });
+            }
+
+            if (!res.ok) throw new Error('API yanit vermedi');
             const buffer = Buffer.from(await res.arrayBuffer());
             await interaction.editReply({ files: [new AttachmentBuilder(buffer, { name: 'ship.png' })] });
-        } catch (e) { await interaction.editReply('❌ API yanıt vermedi veya hata oluştu.'); }
+        } catch (e) { 
+            await interaction.editReply('❌ Ship görseli oluşturulamadı. API sunucusu yoğun olabilir.'); 
+        }
     }
 };
