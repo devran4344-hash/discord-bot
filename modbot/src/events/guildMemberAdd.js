@@ -1,8 +1,8 @@
-// ╔══════════════════════════════════════════════════════════════════════╗
+﻿// ╔══════════════════════════════════════════════════════════════════════╗
 // ║     EVENT: guildMemberAdd — Giriş Banner + Kayıt Bildirimi         ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { sendLog, discordTimestamp } = require('../utils/helpers');
 const config = require('../config');
 const e      = require('../emojiConfig');
@@ -20,7 +20,6 @@ function guvenilirlik(member) {
 
 // ══════════════════════════════════════════════════════
 //  YARDIMCI: Banner URL'si belirle
-//  Öncelik: config > sunucu banner > null
 // ══════════════════════════════════════════════════════
 function getBannerUrl(guild, cfgUrl) {
   if (cfgUrl && cfgUrl.trim()) return cfgUrl.trim();
@@ -35,8 +34,7 @@ module.exports = {
   async execute(member, client) {
     const guild = member.guild;
 
-    // ── Kayıtsız rolü ver (sadece config'de tanımlıysa) ──────────
-    // kayitsizRolId boşsa hiçbir şey yapma, üye @everyone ile devam eder
+    // ── Kayıtsız rolü ver ──────────
     if (config.kayit?.enabled && config.kayit?.kayitsizRolId && !member.user.bot) {
       const kayitsizRol = guild.roles.cache.get(config.kayit.kayitsizRolId);
       if (kayitsizRol) {
@@ -49,7 +47,6 @@ module.exports = {
       const kayitKanal = guild.channels.cache.get(config.kayit.kanalId);
       if (kayitKanal) {
         const g   = guvenilirlik(member);
-
         const bildirimEmbed = new EmbedBuilder()
           .setColor(g.renk)
           .setAuthor({
@@ -75,21 +72,9 @@ module.exports = {
         ].join(' ');
 
         const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`kayit_hizli_${member.id}`)
-            .setLabel('Hızlı Kayıt')
-            .setEmoji('✅')
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`kayit_bilgi_${member.id}`)
-            .setLabel('Kullanıcı Bilgisi')
-            .setEmoji('ℹ️')
-            .setStyle(ButtonStyle.Primary),
-          new ButtonBuilder()
-            .setCustomId(`kayit_kayitsiz_${member.id}`)
-            .setLabel('Kayıtsız Ver')
-            .setEmoji('🚫')
-            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder().setCustomId(`kayit_hizli_${member.id}`).setLabel('Hızlı Kayıt').setEmoji('✅').setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`kayit_bilgi_${member.id}`).setLabel('Kullanıcı Bilgisi').setEmoji('ℹ️').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId(`kayit_kayitsiz_${member.id}`).setLabel('Kayıtsız Ver').setEmoji('🚫').setStyle(ButtonStyle.Danger),
         );
 
         await kayitKanal.send({ content: pingContent, embeds: [bildirimEmbed], components: [row] }).catch(() => null);
@@ -124,7 +109,7 @@ module.exports = {
       }
     }
 
-    // ── Üye log (memberLog kanalına) ─────────────────────────────
+    // ── Üye log ─────────────────────────────
     if (config.logging.memberJoin) {
       const age     = Date.now() - member.user.createdTimestamp;
       const ageDays = Math.floor(age / 86400000);
@@ -146,8 +131,7 @@ module.exports = {
     }
 
     // ════════════════════════════════════════════════════════════
-    //  HOŞGELDİN BANNER MESAJI
-    //  Resimlerdeki gibi: büyük arka plan + kullanıcı adı + avatar
+    //  HOŞGELDİN BANNER MESAJI (ELEKUS API ENTEGRE)
     // ════════════════════════════════════════════════════════════
     if (!config.welcome.enabled) return;
     const welcomeChannel = config.channels.welcomeChannel
@@ -157,17 +141,47 @@ module.exports = {
 
     const total      = guild.memberCount;
     const ageDays    = Math.floor((Date.now() - member.user.createdTimestamp) / 86400000);
-    const bannerUrl  = getBannerUrl(guild, config.welcome.bannerUrl);
     const altYazi    = (config.welcome.altYazi || 'Sunucuya Hoşgeldiniz')
       .replace('{user}',        member.user.username)
       .replace('{username}',    member.user.username)
       .replace('{server}',      guild.name)
       .replace('{memberCount}', total.toString());
 
+    // === YENİ: ELEKUS API BANNER OLUŞTURMA ===
+    let attachment = null;
+    let bannerImageUrl = getBannerUrl(guild, config.welcome.bannerUrl);
+
+    try {
+      const avatarURL = member.user.displayAvatarURL({ extension: 'png', size: 1024 });
+      
+      // DİKKAT: Buradaki arkaplan linkini kendi kalıcı linkinle değiştirmeyi unutma!
+      const backgroundURL = 'https://cdn.discordapp.com/attachments/1510712028514484354/1563630515410575463/ChatGPT_Image_26_Eyl_2026_01_26_15.png';
+
+      const params = new URLSearchParams({
+        avatar: avatarURL,
+        arkaplan: backgroundURL,
+        yazi1: 'Hoşgeldin',
+        yazi2: member.user.username,
+        yazi3: 'Sunucumuza katıldı',
+        baslikhex: 'ffffff',
+        usernamehex: '5865f2',
+        footerhex: 'a1a1ab'
+      });
+
+      const apiURL = `https://elecus.dev/api/v1/hgbb?${params.toString()}`;
+      
+      const response = await fetch(apiURL);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        attachment = new AttachmentBuilder(buffer, { name: 'welcome-banner.png' });
+        bannerImageUrl = 'attachment://welcome-banner.png';
+      }
+    } catch (error) {
+      console.error('Banner API hatası, varsayılan resme dönülüyor:', error);
+    }
+
     // ── Ana banner embed ─────────────────────────────────────────
-    // setImage → büyük arka plan (resimlerdeki görünüm)
-    // setThumbnail → sağ üstte avatar
-    // description → isim + alt yazı (resimlerdeki ortadaki yazı)
     const bannerEmbed = new EmbedBuilder()
       .setColor(config.welcome.bannerColor || config.colors.join)
       .setAuthor({
@@ -185,11 +199,9 @@ module.exports = {
       })
       .setTimestamp();
 
-    // Banner varsa büyük resim olarak ekle
-    if (bannerUrl) bannerEmbed.setImage(bannerUrl);
+    if (bannerImageUrl) bannerEmbed.setImage(bannerImageUrl);
 
     // ── Detay embed ──────────────────────────────────────────────
-    // Fotoğrafların altındaki küçük bilgi kartı
     const detayEmbed = new EmbedBuilder()
       .setColor(0x2B2D31)
       .addFields(
@@ -202,10 +214,16 @@ module.exports = {
         ...(config.channels.rules ? [{ name: `${e.info || 'ℹ️'} Kurallar`, value: `<#${config.channels.rules}>`, inline: true }] : []),
       );
 
-    await welcomeChannel.send({
+    const messagePayload = {
       content: `<@${member.id}>`,
       embeds:  [bannerEmbed, detayEmbed],
-    }).catch(() => null);
+    };
+    
+    if (attachment) {
+      messagePayload.files = [attachment];
+    }
+
+    await welcomeChannel.send(messagePayload).catch(() => null);
 
     // ── DM ───────────────────────────────────────────────────────
     if (config.welcome.sendDM) {
