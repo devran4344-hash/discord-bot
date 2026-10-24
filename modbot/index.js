@@ -105,14 +105,15 @@ for (const folder of commandFolders) {
 
   for (const file of commandFiles) {
     const command = require(path.join(__dirname, 'src', 'commands', folder, file));
-    if (!command.name) continue;
+    const cmdName = command.name || (command.data && command.data.name);
+    if (!cmdName) continue;
 
-    client.commands.set(command.name, command);
+    client.commands.set(cmdName, command);
     if (command.aliases) {
-      command.aliases.forEach((alias) => client.aliases.set(alias, command.name));
+      command.aliases.forEach((alias) => client.aliases.set(alias, cmdName));
     }
     loadedCommands++;
-    console.log(chalk.green(`  âœ“ Komut yÃ¼klendi: ${chalk.white(command.name)}`));
+    console.log(chalk.green(`  âœ“ Komut yüklendi: ${chalk.white(cmdName)}`));
   }
 }
 
