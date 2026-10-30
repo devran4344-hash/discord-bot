@@ -44,27 +44,45 @@ module.exports = {
 
             const logo1Img = await loadImage(l1.url);
             const logo2Img = await loadImage(l2.url);
-            ctx.drawImage(logo1Img, canvas.width * 0.15, canvas.height * 0.08, 220, 220);
-            ctx.drawImage(logo2Img, canvas.width * 0.65, canvas.height * 0.08, 220, 220);
+            
+            // --- LOGOLARI BÜYÜTÜP KALKANLARIN İÇİNE OTURTMA ---
+            // Boyutu resmin genişliğine göre dinamik ayarlıyoruz
+            const logoBoyut = canvas.width * 0.22; 
+            
+            // Sol Kalkan (Biraz daha içeri ve aşağı)
+            ctx.drawImage(logo1Img, canvas.width * 0.14, canvas.height * 0.06, logoBoyut, logoBoyut);
+            // Sağ Kalkan (Biraz daha içeri ve aşağı)
+            ctx.drawImage(logo2Img, canvas.width * 0.64, canvas.height * 0.06, logoBoyut, logoBoyut);
 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            ctx.font = '140px Bangers, sans-serif';
-            ctx.fillStyle = '#FFD700';
+            // --- YAZILARI BÜYÜT VE TAM MERKEZE OTURT ---
+            
+            // Takım İsimleri (Biraz daha yukarı, tam siyah alanın üstüne)
+            ctx.font = `${canvas.width * 0.09}px Bangers, sans-serif`;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 8;
+            ctx.strokeText(`${t1} - ${t2}`, canvas.width / 2, canvas.height * 0.34);
+            ctx.fillText(`${t1} - ${t2}`, canvas.width / 2, canvas.height * 0.34);
+
+            // DERBİSİ Yazısı (Tam siyah alanın ortasına, sarı renkli)
+            ctx.font = `${canvas.width * 0.14}px Bangers, sans-serif`;
+            ctx.fillStyle = '#FFD700'; // Sarı
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 10;
-            ctx.strokeText('DERBİSİ', canvas.width / 2, canvas.height * 0.45);
-            ctx.fillText('DERBİSİ', canvas.width / 2, canvas.height * 0.45);
+            ctx.strokeText('DERBİSİ', canvas.width / 2, canvas.height * 0.48);
+            ctx.fillText('DERBİSİ', canvas.width / 2, canvas.height * 0.48);
 
-            ctx.font = '90px Bangers, sans-serif';
+            // --- TARİH VE SAAT (Alt şeridin tam ortasına) ---
+            ctx.font = `${canvas.width * 0.065}px Bangers, sans-serif`;
             ctx.fillStyle = '#FFFFFF';
-            ctx.strokeText(`${t1} - ${t2}`, canvas.width / 2, canvas.height * 0.32);
-            ctx.fillText(`${t1} - ${t2}`, canvas.width / 2, canvas.height * 0.32);
-
-            ctx.font = '80px Bangers, sans-serif';
-            ctx.strokeText(`${tarih} | ${saat}`, canvas.width / 2, canvas.height * 0.88);
-            ctx.fillText(`${tarih} | ${saat}`, canvas.width / 2, canvas.height * 0.88);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 6;
+            // İkonların sağına denk gelecek şekilde ortaya hizalıyoruz
+            ctx.strokeText(`${tarih}  |  ${saat}`, canvas.width / 2, canvas.height * 0.87);
+            ctx.fillText(`${tarih}  |  ${saat}`, canvas.width / 2, canvas.height * 0.87);
 
             const attachment = new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'derbi.png' });
             await interaction.editReply({ files: [attachment] });
