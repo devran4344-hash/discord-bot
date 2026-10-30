@@ -3,12 +3,7 @@ const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const path = require('path');
 const fs = require('fs');
 
-try {
-    GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers');
-} catch (e) {
-    console.log('Font bulunamadi, varsayilan font kullanilacak.');
-}
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
+try { GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers'); } catch (e) {}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -23,6 +18,15 @@ module.exports = {
 
     async execute(interaction) {
         await interaction.deferReply();
+        
+        // CONFIG KONTROLÜ (Hata vermemesi için içeri aldık)
+        let config;
+        try {
+            config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
+        } catch (err) {
+            return interaction.editReply('Kral `config.json` dosyası sunucuda bulunamadı! Lütfen dosyayı repoya ekleyip pushla.');
+        }
+
         const t1 = interaction.options.getString('takim1').toUpperCase();
         const l1 = interaction.options.getAttachment('logo1');
         const t2 = interaction.options.getString('takim2').toUpperCase();

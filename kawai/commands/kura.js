@@ -3,12 +3,7 @@ const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const path = require('path');
 const fs = require('fs');
 
-try {
-    GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers');
-} catch (e) {
-    console.log('Font bulunamadi, varsayilan font kullanilacak.');
-}
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
+try { GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers'); } catch (e) {}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -26,6 +21,13 @@ module.exports = {
 
     async execute(interaction) {
         await interaction.deferReply();
+
+        let config;
+        try {
+            config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
+        } catch (err) {
+            return interaction.editReply('Kral `config.json` dosyası sunucuda bulunamadı! Lütfen dosyayı repoya ekleyip pushla.');
+        }
         
         const m1_t1 = interaction.options.getString('m1_t1').toUpperCase();
         const m1_t2 = interaction.options.getString('m1_t2').toUpperCase();
