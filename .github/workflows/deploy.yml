@@ -1,0 +1,29 @@
+name: Deploy Commands
+
+on:
+  workflow_dispatch: # Manuel tetikleme (Actions sekmesinden çalıştırabilirsin)
+  push:
+    branches:
+      - main
+    paths:
+      - 'kawai/commands/**'
+      - 'kawai/deploy.js'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        working-directory: ./kawai
+        run: npm install
+      - name: Deploy Commands
+        working-directory: ./kawai
+        env:
+          DISCORD_TOKEN: ${{ secrets.KAWAI_TOKEN }}
+          CLIENT_ID: ${{ secrets.KAWAI_CLIENT_ID }}
+          GUILD_ID: ${{ secrets.KAWAI_GUILD_ID }} # Sunucu ID'si
+        run: node deploy.js
