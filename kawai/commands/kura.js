@@ -1,9 +1,13 @@
 ﻿const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const path = require('path');
 const fs = require('fs');
 
-registerFont(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), { family: 'Bangers' });
+try {
+    GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers');
+} catch (e) {
+    console.log('Font bulunamadi, varsayilan font kullanilacak.');
+}
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
 
 module.exports = {
@@ -56,7 +60,7 @@ module.exports = {
                 { y: canvas.height * 0.66, t1: m3_t1, t2: m3_t2, saat: m3_saat }
             ];
 
-            ctx.font = '50px Bangers';
+            ctx.font = '50px Bangers, sans-serif';
             for (const satir of satirlar) {
                 ctx.strokeText(satir.t1, canvas.width * 0.20, satir.y);
                 ctx.fillText(satir.t1, canvas.width * 0.20, satir.y);
@@ -64,12 +68,12 @@ module.exports = {
                 ctx.strokeText(satir.t2, canvas.width * 0.80, satir.y);
                 ctx.fillText(satir.t2, canvas.width * 0.80, satir.y);
 
-                ctx.font = '40px Bangers';
+                ctx.font = '40px Bangers, sans-serif';
                 ctx.fillStyle = '#FFD700';
                 ctx.strokeText(satir.saat, canvas.width * 0.50, satir.y + 20);
                 ctx.fillText(satir.saat, canvas.width * 0.50, satir.y + 20);
                 ctx.fillStyle = '#FFFFFF';
-                ctx.font = '50px Bangers';
+                ctx.font = '50px Bangers, sans-serif';
             }
 
             const attachment = new AttachmentBuilder(canvas.toBuffer('image/png'), { name: 'kura.png' });

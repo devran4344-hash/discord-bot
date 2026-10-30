@@ -1,9 +1,13 @@
 ﻿const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
+const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
 const path = require('path');
 const fs = require('fs');
 
-registerFont(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), { family: 'Bangers' });
+try {
+    GlobalFonts.registerFromPath(path.join(__dirname, '../assets/fonts/Bangers-Regular.ttf'), 'Bangers');
+} catch (e) {
+    console.log('Font bulunamadi, varsayilan font kullanilacak.');
+}
 const config = JSON.parse(fs.readFileSync(path.join(__dirname, '../config.json'), 'utf8'));
 
 module.exports = {
@@ -43,14 +47,14 @@ module.exports = {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            ctx.font = '100px Bangers';
+            ctx.font = '100px Bangers, sans-serif';
             ctx.fillStyle = '#FFFFFF';
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 8;
             ctx.strokeText('MAÇ BİTTİ!', canvas.width / 2, canvas.height * 0.35);
             ctx.fillText('MAÇ BİTTİ!', canvas.width / 2, canvas.height * 0.35);
 
-            ctx.font = '120px Bangers';
+            ctx.font = '120px Bangers, sans-serif';
             ctx.fillStyle = '#FFD700';
             const skorYazi = `${t1}  ${s1} - ${s2}  ${t2}`;
             ctx.strokeText(skorYazi, canvas.width / 2, canvas.height * 0.50);
