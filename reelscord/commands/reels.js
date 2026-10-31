@@ -3,7 +3,6 @@ const { getUser, saveUser } = require('../services/algorithmService');
 const { getRandomVideos, getVideoById } = require('../services/videoService');
 const { downloadVideo, deleteTempFile } = require('../services/downloadService');
 const { autoFetchVideos } = require('../services/autoFetchService');
-const { ACTIVE_QUEUE_SIZE } = require('../utils/constants');
 
 module.exports = {
   data: new SlashCommandBuilder().setName('reels').setDescription('Kisisel video akisini acar'),
@@ -12,34 +11,32 @@ module.exports = {
     const uid = i.user.id; 
     
     console.log(`[DEBUG] --- YENI REELS ISTEGI ---`);
-    console.log(`[DEBUG] Kullanici ID: ${uid}`);
     
-    // 1. PROFIL KONTROLU (Yoksa saniyesinde acar)
+    // 1. PROFIL KONTROLU
     const u = await getUser(uid);
-    console.log(`[DEBUG] Profil kontrol edildi. Kuyruk boyutu: ${u.videoQueue.length}`);
+    console.log(`[DEBUG] Kuyruk boyutu: ${u.videoQueue.length}`);
 
-    // 2. KUYRUK BOSSA OTOMATIK VIDEO CEK
-    if(u.videoQueue.length < ACTIVE_QUEUE_SIZE){
+    // 2. KUYRUK TAMAMEN BOSSA OTOMATIK VIDEO CEK
+    if(u.videoQueue.length === 0){
       console.log(`[DEBUG] Kuyruk bos, AutoFetch tetikleniyor...`);
-      await i.editReply({ content: '⏳ Sistem baslatiliyor, ilk videolar hazirlaniyor. Lutfen bekle...' });
-      
-      await autoFetchVideos(); // Videolar yoksa Firebase'e ekler
-      
-      const vids = await getRandomVideos(ACTIVE_QUEUE_SIZE);
+      await i.editReply({ content: '⏳ Ilk videolar hazirlaniyor, lutfen bekle...' });
+      await autoFetchVideos(); 
+      const vids = await getRandomVideos(20); // 20 tane cek
       u.videoQueue = vids.map(v => v.id);
       await saveUser(uid, { videoQueue: u.videoQueue });
-      console.log(`[DEBUG] Yeni kuyruk olusturuldu. Video sayisi: ${u.videoQueue.length}`);
     }
     
     // 3. VIDEOYU INDIR
-    const videoId = u.videoQueue[0];
+    const videoId = u.videoQueue.shift(); // Siradaki videoyu al ve kuyruktan cikar
+    await saveUser(uid, { videoQueue: u.videoQueue });
+
     if (!videoId) {
-      return i.editReply({ content: '❌ Hata: Veritabaninda video bulunamadi ve otomatik ekleme basarisiz oldu.' });
+      return i.editReply({ content: '❌ Sistemde hic video yok. Lutfen AutoFetch workflowunu calistirin.' });
     }
 
     const video = await getVideoById(videoId);
     if(!video) {
-      return i.editReply({ content: '❌ Hata: Video ID bulundu ama veritabani kaydi silinmis.' });
+      return i.editReply({ content: '❌ Video bulunamadi (silinmis).' });
     }
 
     try {
@@ -47,7 +44,7 @@ module.exports = {
       console.log(`[DEBUG] Indirme basliyor: ${video.url}`);
       
       const filePath = await downloadVideo(video.url);
-      console.log(`[DEBUG] Indirme basarili! Dosya yolu: ${filePath}`);
+      console.log(`[DEBUG] Indirme basarili! Dosya: ${filePath}`);
       
       const attachment = new AttachmentBuilder(filePath, { name: 'reels.mp4' });
 
@@ -63,17 +60,14 @@ module.exports = {
         new ButtonBuilder().setCustomId(`repost_${video.id}`).setLabel('Repostla').setStyle(ButtonStyle.Primary)
       );
 
-      u.videoQueue.shift(); 
-      await saveUser(uid, { videoQueue: u.videoQueue });
-      
       await i.editReply({ content: '', embeds: [e], components: [row], files: [attachment] });
-      console.log(`[DEBUG] Video basariyla Discord'a gonderildi.`);
+      console.log(`[DEBUG] Video basariyla gonderildi.`);
       
       setTimeout(() => deleteTempFile(filePath), 30000);
 
     } catch (err) {
-      console.error('[HATA] Indirme sirasinda coktu:', err);
-      await i.editReply({ content: '❌ Video indirilemedi. Link bozuk veya Instagram engelledi.' });
+      console.error('[HATA] Indirme coktu:', err.message);
+      await i.editReply({ content: '❌ Video indirilemedi. Lutfen tekrar /reels yazin.' });
     }
   }
 };
