@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
 const { getUser, saveUser } = require('../services/algorithmService');
 const { getRandomVideos, getVideoById } = require('../services/videoService');
 const { downloadVideo, deleteTempFile } = require('../services/downloadService');
@@ -12,48 +12,34 @@ module.exports = {
     const u = await getUser(uid);
     
     console.log(`[DEBUG] --- YENI REELS ISTEGI ---`);
-    console.log(`[DEBUG] Kuyruk boyutu: ${u.videoQueue.length}`);
 
-    // Kuyruk bossa VEYA eski 5'li sistemde kaldiysa sifirla
-    if (u.videoQueue.length === 0 || u.videoQueue.includes('v4') || u.videoQueue.includes('v5')) {
-      console.log(`[DEBUG] Kuyruk eski/silinmis videolari iceriyor. Sifirlaniyor...`);
+    // Eger kuyrukta eski W3C videolari (v1, v2, v3) varsa zorla sifirla
+    if (u.videoQueue.length === 0 || u.videoQueue.includes('v1') || u.videoQueue.includes('v2')) {
+      console.log(`[DEBUG] Kuyruk eski videolari iceriyor. Sifirlaniyor...`);
       await i.editReply({ content: '⏳ Sistem guncelleniyor, eski videolar temizleniyor...' });
-      
       await autoFetchVideos(); 
-      
       const vids = await getRandomVideos(20);
       u.videoQueue = vids.map(v => v.id);
       await saveUser(uid, { videoQueue: u.videoQueue });
-      console.log(`[DEBUG] Yeni kuyruk: ${u.videoQueue.length} video.`);
     }
     
     const videoId = u.videoQueue.shift();
     await saveUser(uid, { videoQueue: u.videoQueue });
 
-    if (!videoId) {
-      return i.editReply({ content: '❌ Sistemde video yok. Actions uzerinden AutoFetch calistirin.' });
-    }
+    if (!videoId) return i.editReply({ content: '❌ Sistemde video yok.' });
 
     const video = await getVideoById(videoId);
-    if(!video) {
-      return i.editReply({ content: '❌ Video veritabaninda bulunamadi (silinmis).' });
-    }
+    if(!video) return i.editReply({ content: '❌ Video bulunamadi.' });
 
     try {
       await i.editReply({ content: `⏳ Video indiriliyor: **${video.title}**` });
       console.log(`[DEBUG] Indirme basliyor: ${video.url}`);
       
       const filePath = await downloadVideo(video.url);
-      console.log(`[DEBUG] Indirme basarili! Dosya: ${filePath}`);
+      console.log(`[DEBUG] Indirme basarili!`);
       
       const attachment = new AttachmentBuilder(filePath, { name: 'reels.mp4' });
-
-      const e = new EmbedBuilder()
-        .setTitle(video.title || 'ReelsCord')
-        .setDescription(video.description || 'Video')
-        .setColor('#E1306C')
-        .setFooter({ text: `Kategori: ${video.category || 'diger'}` });
-
+      const e = new EmbedBuilder().setTitle(video.title || 'ReelsCord').setDescription(video.description || 'Video').setColor('#E1306C').setFooter({ text: `Kategori: ${video.category || 'diger'}` });
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`like_${video.id}`).setLabel('Begen').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`skip_${video.id}`).setLabel('Gec').setStyle(ButtonStyle.Secondary),
@@ -64,7 +50,6 @@ module.exports = {
       console.log(`[DEBUG] Video basariyla gonderildi.`);
       
       setTimeout(() => deleteTempFile(filePath), 30000);
-
     } catch (err) {
       console.error('[HATA] Indirme coktu:', err.message);
       await i.editReply({ content: '❌ Video indirilemedi. Lutfen tekrar /reels yazin.' });

@@ -5,19 +5,18 @@ async function autoFetchVideos() {
   
   console.log('[DEBUG] AutoFetch: Eski videolar temizleniyor...');
   
-  // 1. Eski tum videolari sil
   const oldVideos = await db.collection('videos').get();
   const deleteBatch = db.batch();
   oldVideos.forEach(doc => deleteBatch.delete(doc.ref));
   await deleteBatch.commit();
   
-  console.log('[DEBUG] AutoFetch: Garantili yeni test videolari ekleniyor...');
+  console.log('[DEBUG] AutoFetch: GitHub uzerinden garantili test videolari ekleniyor...');
   
-  // 2. %100 Calisan, engellenmeyen yeni test videolari (W3Schools & MDN)
+  // %100 Calisan, GitHub tarafindan engellenmeyen Raw videolar
   const videos = [
-    { id: 'v1', title: 'Tavsan ve Kaplumbaga', desc: 'W3Schools Test Videosu', url: 'https://www.w3schools.com/html/mov_bbb.mp4', cat: 'mizah' },
-    { id: 'v2', title: 'Cicek Acisi', desc: 'MDN Test Videosu', url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', cat: 'spor' },
-    { id: 'v3', title: 'Sintel Fragman', desc: 'W3C Test Videosu', url: 'https://media.w3.org/2010/05/sintel/trailer.mp4', cat: 'teknoloji' }
+    { id: 'gh1', title: 'Tavsan ve Kaplumbaga', desc: 'GitHub Raw Test Videosu', url: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4', cat: 'mizah' },
+    { id: 'gh2', title: 'Arac Tanima', desc: 'Intel Test Videosu', url: 'https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/car-detection.mp4', cat: 'teknoloji' },
+    { id: 'gh3', title: 'Yuz Tanima', desc: 'Intel Test Videosu 2', url: 'https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/head-pose-face-detection-female.mp4', cat: 'oyun' }
   ];
 
   const batch = db.batch();
@@ -27,6 +26,6 @@ async function autoFetchVideos() {
     });
   }
   await batch.commit();
-  console.log(`[DEBUG] AutoFetch: ${videos.length} adet garantili video Firestore'a yazildi!`);
+  console.log(`[DEBUG] AutoFetch: ${videos.length} adet garantili video yazildi!`);
 }
 module.exports = { autoFetchVideos };
