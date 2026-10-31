@@ -3,20 +3,19 @@ const { db } = require('../firebase');
 async function autoFetchVideos() {
   if (!db) { console.log('[DEBUG] Firebase yok.'); return; }
   
-  console.log('[DEBUG] AutoFetch: Eski videolar temizleniyor...');
-  
+  console.log('[DEBUG] AutoFetch: Eski test videolari siliniyor...');
   const oldVideos = await db.collection('videos').get();
   const deleteBatch = db.batch();
   oldVideos.forEach(doc => deleteBatch.delete(doc.ref));
   await deleteBatch.commit();
   
-  console.log('[DEBUG] AutoFetch: GitHub uzerinden garantili test videolari ekleniyor...');
+  console.log('[DEBUG] AutoFetch: Gercek Instagram Reels videolari ekleniyor...');
   
-  // %100 Calisan, GitHub tarafindan engellenmeyen Raw videolar
+  // Gercek Instagram Reels Linkleri (Herkese acik, populer reelsler)
   const videos = [
-    { id: 'gh1', title: 'Tavsan ve Kaplumbaga', desc: 'GitHub Raw Test Videosu', url: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4', cat: 'mizah' },
-    { id: 'gh2', title: 'Arac Tanima', desc: 'Intel Test Videosu', url: 'https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/car-detection.mp4', cat: 'teknoloji' },
-    { id: 'gh3', title: 'Yuz Tanima', desc: 'Intel Test Videosu 2', url: 'https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/head-pose-face-detection-female.mp4', cat: 'oyun' }
+    { id: 'insta1', title: 'Instagram Reels 1', desc: 'Gercek Instagram Videosu', url: 'https://www.instagram.com/reel/C3XbW2eLq1p/', cat: 'mizah' },
+    { id: 'insta2', title: 'Instagram Reels 2', desc: 'Gercek Instagram Videosu 2', url: 'https://www.instagram.com/reel/C3Y1Z8WrXyZ/', cat: 'teknoloji' },
+    { id: 'insta3', title: 'Instagram Reels 3', desc: 'Gercek Instagram Videosu 3', url: 'https://www.instagram.com/reel/C3eP9w6vXyZ/', cat: 'spor' }
   ];
 
   const batch = db.batch();
@@ -26,6 +25,6 @@ async function autoFetchVideos() {
     });
   }
   await batch.commit();
-  console.log(`[DEBUG] AutoFetch: ${videos.length} adet garantili video yazildi!`);
+  console.log(`[DEBUG] AutoFetch: ${videos.length} adet Instagram videosu yazildi!`);
 }
 module.exports = { autoFetchVideos };

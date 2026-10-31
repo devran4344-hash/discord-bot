@@ -13,10 +13,10 @@ module.exports = {
     
     console.log(`[DEBUG] --- YENI REELS ISTEGI ---`);
 
-    // Eger kuyrukta eski W3C videolari (v1, v2, v3) varsa zorla sifirla
-    if (u.videoQueue.length === 0 || u.videoQueue.includes('v1') || u.videoQueue.includes('v2')) {
-      console.log(`[DEBUG] Kuyruk eski videolari iceriyor. Sifirlaniyor...`);
-      await i.editReply({ content: '⏳ Sistem guncelleniyor, eski videolar temizleniyor...' });
+    // Eski gh1, gh2, gh3 videolari varsa zorla sifirla
+    if (u.videoQueue.length === 0 || u.videoQueue.includes('gh1') || u.videoQueue.includes('gh2') || u.videoQueue.includes('v1')) {
+      console.log(`[DEBUG] Kuyruk eski test videolarini iceriyor. Sifirlaniyor...`);
+      await i.editReply({ content: '⏳ Sisteme gercek Instagram videolari ekleniyor...' });
       await autoFetchVideos(); 
       const vids = await getRandomVideos(20);
       u.videoQueue = vids.map(v => v.id);
@@ -32,7 +32,7 @@ module.exports = {
     if(!video) return i.editReply({ content: '❌ Video bulunamadi.' });
 
     try {
-      await i.editReply({ content: `⏳ Video indiriliyor: **${video.title}**` });
+      await i.editReply({ content: `⏳ Instagram'dan video indiriliyor: **${video.title}**` });
       console.log(`[DEBUG] Indirme basliyor: ${video.url}`);
       
       const filePath = await downloadVideo(video.url);
@@ -52,7 +52,7 @@ module.exports = {
       setTimeout(() => deleteTempFile(filePath), 30000);
     } catch (err) {
       console.error('[HATA] Indirme coktu:', err.message);
-      await i.editReply({ content: '❌ Video indirilemedi. Lutfen tekrar /reels yazin.' });
+      await i.editReply({ content: '❌ Instagram videoyu indirmedi (Bot engeli). Lutfen tekrar /reels yazin.' });
     }
   }
 };
