@@ -10,18 +10,32 @@ async function downloadVideo(url) {
   
   const fileName = `${uuidv4()}.mp4`;
   const filePath = path.join(tempDir, fileName);
+  
+  // Cerez dosyasi var mi kontrol et
+  const cookiePath = path.join(__dirname, '..', 'cookies.txt');
+  const hasCookies = fs.existsSync(cookiePath);
 
   try {
-    if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      console.log('[DEBUG] YouTube Shorts linki algilandi. YT-DLP ile indiriliyor...');
-      await youtubedl(url, {
+    if (url.includes('instagram.com')) {
+      console.log(`[DEBUG] Instagram linki algilandi. Cerez durumu: ${hasCookies ? 'VAR' : 'YOK'}`);
+      
+      const options = {
         output: filePath,
-        format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        format: 'mp4',
         noWarnings: true,
         noCheckCertificate: true,
-        forceOverwrites: true
-      });
-      console.log('[DEBUG] YouTube indirmesi basarili.');
+        preferFreeFormats: true,
+        forceOverwrites: true,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      };
+
+      // Eger cerez dosyasi varsa yt-dlp'ye ver
+      if (hasCookies) {
+        options.cookiefile = cookiePath;
+      }
+
+      await youtubedl(url, options);
+      console.log('[DEBUG] Instagram indirmesi basarili.');
       return filePath;
     } 
     

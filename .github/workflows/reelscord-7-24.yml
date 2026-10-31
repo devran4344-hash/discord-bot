@@ -1,0 +1,51 @@
+name: ReelsCord 7-24
+
+on:
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: reelscord-run
+  cancel-in-progress: true
+
+jobs:
+  reelscord:
+    runs-on: ubuntu-latest
+    timeout-minutes: 280
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bagimliliklari kur
+        working-directory: ./reelscord
+        run: npm install
+
+      - name: .env olustur
+        working-directory: ./reelscord
+        run: |
+          cat > .env <<'EOF'
+          REELSCORD_TOKEN=${{ secrets.REELSCORD_TOKEN }}
+          REELSCORD_CLIENT_ID=${{ secrets.REELSCORD_CLIENT_ID }}
+          FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          EOF
+
+      - name: Instagram Cookie Dosyasi Olustur
+        working-directory: ./reelscord
+        run: |
+          cat > cookies.txt <<'EOF'
+          ${{ secrets.INSTAGRAM_COOKIES }}
+          EOF
+
+      - name: Komutlari Discord'a Kaydet (Deploy)
+        working-directory: ./reelscord
+        run: node deploy-commands.js
+
+      - name: Botu calistir
+        working-directory: ./reelscord
+        run: node index.js

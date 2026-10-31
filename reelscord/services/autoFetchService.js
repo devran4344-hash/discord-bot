@@ -9,13 +9,13 @@ async function autoFetchVideos() {
   oldVideos.forEach(doc => deleteBatch.delete(doc.ref));
   await deleteBatch.commit();
   
-  console.log('[DEBUG] AutoFetch: YouTube Shorts (Reels tarzi) videolar ekleniyor...');
+  console.log('[DEBUG] AutoFetch: Instagram Reels videolari ekleniyor...');
   
-  // YouTube Shorts Linkleri (yt-dlp bunlari asla engellemez)
+  // Gercek Instagram Reels Linkleri
   const videos = [
-    { id: 'yt1', title: 'Ilginc Video 1', desc: 'YouTube Shorts Test', url: 'https://www.youtube.com/shorts/6I5vT5D8r3s', cat: 'mizah' },
-    { id: 'yt2', title: 'Ilginc Video 2', desc: 'YouTube Shorts Test 2', url: 'https://www.youtube.com/shorts/1G4isv_Fylg', cat: 'teknoloji' },
-    { id: 'yt3', title: 'Ilginc Video 3', desc: 'YouTube Shorts Test 3', url: 'https://www.youtube.com/shorts/tPEE9ZwTmy0', cat: 'spor' }
+    { id: 'insta1', title: 'Instagram Reels 1', desc: 'Gercek Instagram Videosu', url: 'https://www.instagram.com/reel/C3XbW2eLq1p/', cat: 'mizah' },
+    { id: 'insta2', title: 'Instagram Reels 2', desc: 'Gercek Instagram Videosu 2', url: 'https://www.instagram.com/reel/C3Y1Z8WrXyZ/', cat: 'teknoloji' },
+    { id: 'insta3', title: 'Instagram Reels 3', desc: 'Gercek Instagram Videosu 3', url: 'https://www.instagram.com/reel/C3eP9w6vXyZ/', cat: 'spor' }
   ];
 
   const batch = db.batch();
@@ -25,6 +25,6 @@ async function autoFetchVideos() {
     });
   }
   await batch.commit();
-  console.log(`[DEBUG] AutoFetch: ${videos.length} adet video yazildi!`);
+  console.log(`[DEBUG] AutoFetch: ${videos.length} adet Instagram videosu yazildi!`);
 }
 module.exports = { autoFetchVideos };
