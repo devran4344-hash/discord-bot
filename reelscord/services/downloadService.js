@@ -12,37 +12,24 @@ async function downloadVideo(url) {
   const filePath = path.join(tempDir, fileName);
 
   try {
-    // Eger Instagram Linkiyse direkt YT-DLP kullan (Axios Instagram'i indiremez, HTML sayfasini ceker)
-    if (url.includes('instagram.com')) {
-      console.log('[DEBUG] Instagram linki algilandi. YT-DLP ile indiriliyor...');
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      console.log('[DEBUG] YouTube Shorts linki algilandi. YT-DLP ile indiriliyor...');
       await youtubedl(url, {
         output: filePath,
-        format: 'mp4',
+        format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         noWarnings: true,
         noCheckCertificate: true,
-        preferFreeFormats: true,
-        forceOverwrites: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        forceOverwrites: true
       });
-      console.log('[DEBUG] Instagram indirmesi basarili.');
+      console.log('[DEBUG] YouTube indirmesi basarili.');
       return filePath;
     } 
     
-    // Diger direkt MP4 linkleri icin Axios kullan
     if (url.endsWith('.mp4') || url.includes('.mp4?')) {
-      console.log('[DEBUG] Direkt MP4 linki algilandi. Axios ile indiriliyor...');
-      const response = await axios({
-        method: 'GET',
-        url: url,
-        responseType: 'stream',
-        headers: { 'User-Agent': 'Mozilla/5.0' }
-      });
+      const response = await axios({ method: 'GET', url: url, responseType: 'stream', headers: { 'User-Agent': 'Mozilla/5.0' } });
       const writer = fs.createWriteStream(filePath);
       response.data.pipe(writer);
-      await new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-      });
+      await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
       return filePath;
     }
 
