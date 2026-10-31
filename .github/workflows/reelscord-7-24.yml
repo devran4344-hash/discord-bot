@@ -1,4 +1,4 @@
-name: ReelsCord 7-24
+name: ReelsCord 7-24 Advanced
 
 on:
   schedule:
@@ -15,12 +15,20 @@ jobs:
     timeout-minutes: 280
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Kodu Cek
+        uses: actions/checkout@v4
 
-      - name: Node.js Kur
+      - name: Node.js Kur (Cache ile)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'reelscord/package-lock.json'
+
+      - name: FFmpeg Kur (Video Birlestirme Motoru)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Bagimliliklari kur
         working-directory: ./reelscord
@@ -34,18 +42,30 @@ jobs:
           REELSCORD_CLIENT_ID=${{ secrets.REELSCORD_CLIENT_ID }}
           FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
           EOF
+          echo ".env dosyasi olusturuldu."
 
-      - name: Instagram Cookie Dosyasi Olustur
+      - name: Instagram Cookie Dosyasi (Base64'ten Coz)
         working-directory: ./reelscord
         run: |
-          cat > cookies.txt <<'EOF'
-          ${{ secrets.INSTAGRAM_COOKIES }}
-          EOF
+          echo "${{ secrets.INSTAGRAM_COOKIES_B64 }}" | base64 -d > cookies.txt
+          if [ -s cookies.txt ]; then echo "Cerez dosyasi basariyla olusturuldu."; else echo "Uyari: Cerez dosyasi bos!"; fi
+
+      - name: YT-DLP Motorunu Guncelle
+        working-directory: ./reelscord
+        run: |
+          npm install yt-dlp-exec@latest
+          npx yt-dlp-exec --update 2>/dev/null || true
 
       - name: Komutlari Discord'a Kaydet (Deploy)
         working-directory: ./reelscord
         run: node deploy-commands.js
 
-      - name: Botu calistir
+      - name: Botu calistir (Otomatik Yeniden Baslatma)
         working-directory: ./reelscord
-        run: node index.js
+        run: |
+          while true; do
+            echo "Bot baslatiliyor..."
+            node index.js
+            echo "Bot durdu veya coktu, 10 saniye sonra yeniden baslatilacak..."
+            sleep 10
+          done
