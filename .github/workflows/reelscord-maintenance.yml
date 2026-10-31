@@ -38,6 +38,10 @@ jobs:
           echo ".env dosyasi olusturuldu:"
           grep -o '^[A-Z_]*=' .env | tr -d '='
 
+      - name: Komutlari Discord'a Kaydet (Deploy)
+        working-directory: ./reelscord
+        run: node deploy-commands.js
+
       - name: Botu calistir
         working-directory: ./reelscord
         run: node index.js
