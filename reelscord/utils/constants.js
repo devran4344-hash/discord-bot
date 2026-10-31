@@ -1,0 +1,2 @@
+const CATEGORIES = ['mizah','muzik','spor','oyun','teknoloji','yemek','seyahat','egitim','haber','diger'];
+module.exports = { CATEGORIES, DEFAULT_WEIGHT:1, LIKE_BOOST:2, REPOST_BOOST:5, SKIP_PENALTY:-0.5, QUEUE_SIZE:100, ACTIVE_QUEUE_SIZE:50 };
