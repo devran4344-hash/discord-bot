@@ -5,7 +5,7 @@ async function getRandomVideos(limit=50) {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 async function getVideoById(id) {
-  if (!db) return null;
+  if (!db || !id) return null; // KRİTİK DÜZELTME: Boş ID gelirse Firestore'u patlatma
   const d = await db.collection('videos').doc(id).get();
   return d.exists ? { id: d.id, ...d.data() } : null;
 }
