@@ -1,0 +1,43 @@
+name: ReelsCord 7-24
+
+on:
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+# Ayni anda sadece 1 run - yenisi baslayinca eskisini iptal eder
+concurrency:
+  group: reelscord-run
+  cancel-in-progress: true
+
+jobs:
+  reelscord:
+    runs-on: ubuntu-latest
+    timeout-minutes: 280
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js Kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bagimliliklari kur
+        working-directory: ./reelscord
+        run: npm install
+
+      - name: .env olustur
+        working-directory: ./reelscord
+        run: |
+          cat > .env <<'EOF'
+          REELSCORD_TOKEN=${{ secrets.REELSCORD_TOKEN }}
+          REELSCORD_CLIENT_ID=${{ secrets.REELSCORD_CLIENT_ID }}
+          FIREBASE_SERVICE_ACCOUNT_B64=${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          EOF
+          echo ".env dosyasi olusturuldu:"
+          grep -o '^[A-Z_]*=' .env | tr -d '='
+
+      - name: Botu calistir
+        working-directory: ./reelscord
+        run: node index.js
