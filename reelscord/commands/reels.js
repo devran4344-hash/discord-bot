@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, MessageFlags } = require('discord.js');
 const { getUser, saveUser } = require('../services/algorithmService');
 const { getRandomVideos, getVideoById } = require('../services/videoService');
 const { downloadVideo, deleteTempFile } = require('../services/downloadService');
@@ -9,34 +9,34 @@ module.exports = {
   async execute(i){
     await i.deferReply();
     const uid = i.user.id; 
+    const u = await getUser(uid);
     
     console.log(`[DEBUG] --- YENI REELS ISTEGI ---`);
-    
-    // 1. PROFIL KONTROLU
-    const u = await getUser(uid);
     console.log(`[DEBUG] Kuyruk boyutu: ${u.videoQueue.length}`);
 
-    // 2. KUYRUK TAMAMEN BOSSA OTOMATIK VIDEO CEK
-    if(u.videoQueue.length === 0){
-      console.log(`[DEBUG] Kuyruk bos, AutoFetch tetikleniyor...`);
-      await i.editReply({ content: '⏳ Ilk videolar hazirlaniyor, lutfen bekle...' });
+    // Kuyruk bossa VEYA eski 5'li sistemde kaldiysa sifirla
+    if (u.videoQueue.length === 0 || u.videoQueue.includes('v4') || u.videoQueue.includes('v5')) {
+      console.log(`[DEBUG] Kuyruk eski/silinmis videolari iceriyor. Sifirlaniyor...`);
+      await i.editReply({ content: '⏳ Sistem guncelleniyor, eski videolar temizleniyor...' });
+      
       await autoFetchVideos(); 
-      const vids = await getRandomVideos(20); // 20 tane cek
+      
+      const vids = await getRandomVideos(20);
       u.videoQueue = vids.map(v => v.id);
       await saveUser(uid, { videoQueue: u.videoQueue });
+      console.log(`[DEBUG] Yeni kuyruk: ${u.videoQueue.length} video.`);
     }
     
-    // 3. VIDEOYU INDIR
-    const videoId = u.videoQueue.shift(); // Siradaki videoyu al ve kuyruktan cikar
+    const videoId = u.videoQueue.shift();
     await saveUser(uid, { videoQueue: u.videoQueue });
 
     if (!videoId) {
-      return i.editReply({ content: '❌ Sistemde hic video yok. Lutfen AutoFetch workflowunu calistirin.' });
+      return i.editReply({ content: '❌ Sistemde video yok. Actions uzerinden AutoFetch calistirin.' });
     }
 
     const video = await getVideoById(videoId);
     if(!video) {
-      return i.editReply({ content: '❌ Video bulunamadi (silinmis).' });
+      return i.editReply({ content: '❌ Video veritabaninda bulunamadi (silinmis).' });
     }
 
     try {
