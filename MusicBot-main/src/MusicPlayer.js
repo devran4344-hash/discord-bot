@@ -1183,7 +1183,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
             if (this.resource.volume) {
                 const __vol = (typeof this.volume === 'number' && !isNaN(this.volume)) ? this.volume : 100;
                 console.log('[DIAG] volume raw:', this.volume, '| applied:', __vol);
-                this.resource.volume.setVolume(__vol / 100);
+                this.resource.volume.setVolume(Math.min(__vol / 100, 1.5));
             }
 
             // Update track duration from stream info if available
@@ -1597,7 +1597,9 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
     setVolume(volume) {
         this.volume = Math.max(0, Math.min(200, volume));
         if (this.resource && this.resource.volume) {
-            this.resource.volume.setVolume(this.volume / 100);
+            // inlineVolume 1.5 üzerinde distortion yapar — 150% = 1.5 max uygula
+            const applied = Math.min(this.volume / 100, 1.5);
+            this.resource.volume.setVolume(applied);
         }
         this.scheduleStatePersist('volume', 200);
         return this.volume;

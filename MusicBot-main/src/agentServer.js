@@ -151,30 +151,42 @@ class AgentServer {
                     // Arka planda bağlan ve çal
                     (async () => {
                         try {
+                            // Ses kanalına bağlan
                             if (!player.connection) {
                                 await player.connect();
                             }
 
+                            // Şarkıyı ekle ve çal
                             const result = await player.addTrack(query, requestedBy || 'RRT');
 
                             if (!result.success) {
                                 console.error(`[AgentServer] addTrack failed: ${result.message}`);
-                                if (textChannel) {
-                                    textChannel.send(`❌ ${result.message || 'Şarkı eklenemedi.'}`).catch(() => {});
-                                }
+                                textChannel.send(`❌ ${result.message || 'Şarkı eklenemedi.'}`).catch(() => {});
                                 return;
                             }
 
-                            // Now-playing embed gönder
+                            // Now-playing embed — EmbedManager yoksa direkt gönder
                             const embedMgr = this.client.musicEmbedManager || global.clients?.musicEmbedManager;
-                            if (embedMgr) {
-                                await embedMgr.updateNowPlayingEmbed(player).catch(() => {});
+                            if (embedMgr && player.currentTrack) {
+                                // Embed manager varsa kullan
+                                if (!player.nowPlayingMessage) {
+                                    const MusicEmbedManager = require('./MusicEmbedManager');
+                                    if (!this.client.musicEmbedManager) {
+                                        this.client.musicEmbedManager = new MusicEmbedManager(this.client);
+                                        global.clients = global.clients || {};
+                                        global.clients.musicEmbedManager = this.client.musicEmbedManager;
+                                    }
+                                    const embed = await this.client.musicEmbedManager.createNowPlayingEmbed(player, player.currentTrack, guild.id);
+                                    const rows  = this.client.musicEmbedManager._buildMainButtons(player);
+                                    const msg   = await textChannel.send({ embeds: [embed], components: rows });
+                                    player.nowPlayingMessage = msg;
+                                } else {
+                                    await embedMgr.updateNowPlayingEmbed(player).catch(() => {});
+                                }
                             }
                         } catch (err) {
                             console.error('[AgentServer] Async play error:', err.message);
-                            if (textChannel) {
-                                textChannel.send(`❌ Çalma hatası: ${err.message}`).catch(() => {});
-                            }
+                            textChannel.send(`❌ Çalma hatası: \`${err.message}\``).catch(() => {});
                         }
                     })();
                 }
