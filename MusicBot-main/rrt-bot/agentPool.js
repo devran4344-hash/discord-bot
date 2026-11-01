@@ -77,6 +77,11 @@ async function fetchAgentStatus(agent) {
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) return cached.status;
 
     try {
+        // Önce /health ile hızlı kontrol
+        const health = await httpRequest(makeOptions(agent, 'GET', '/health'));
+        if (health.status !== 200) return null;
+
+        // Sonra /status ile tam durum
         const res = await httpRequest(makeOptions(agent, 'GET', '/status'));
         if (res.status === 200 && res.body?.online) {
             statusCache.set(agent.id, { status: res.body, fetchedAt: Date.now() });
@@ -129,15 +134,30 @@ async function pickBestAgent(guildId) {
     )[0];
 }
 
-// ── Ajana /play isteği gönder ─────────────────────────────────────────────────
+// ── Ajana /play isteği gönder — 3 deneme ─────────────────────────────────────
 async function requestPlay(agent, payload) {
     const bodyStr = JSON.stringify(payload);
-    const res = await httpRequest(
-        makeOptions(agent, 'POST', '/play', Buffer.byteLength(bodyStr)),
-        payload
-    );
+    let lastErr;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const res = await httpRequest(
+                makeOptions(agent, 'POST', '/play', Buffer.byteLength(bodyStr)),
+                payload
+            );
+            statusCache.delete(agent.id);
+            return res;
+        } catch (err) {
+            lastErr = err;
+            if (attempt < 3) {
+                console.log(chalk.yellow(`  [Pool] ${agent.name} /play deneme ${attempt}/3 başarısız: ${err.message} — 3s bekle`));
+                await new Promise(r => setTimeout(r, 3000));
+            }
+        }
+    }
+
     statusCache.delete(agent.id);
-    return res;
+    throw lastErr;
 }
 
 // ── Ajana genel komut gönder (skip, stop, pause, resume) ─────────────────────

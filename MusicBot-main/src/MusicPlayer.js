@@ -487,21 +487,23 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
                     selfMute: false
                 });
 
-                console.log('[DIAG-CONNECT] status:', this.connection?.state?.status);
-
                 await entersState(this.connection, VoiceConnectionStatus.Ready, 30000);
                 return true;
             } catch (error) {
-                console.error('❌ Failed to rejoin new voice channel:', error);
+                console.error('❌ Failed to rejoin new voice channel:', error.message);
                 try {
-                    this.connection.destroy();
+                    if (this.connection && this.connection.state?.status !== 'destroyed') {
+                        this.connection.destroy();
+                    }
                 } catch (destroyError) {
-                    console.error('❌ Error destroying old connection:', destroyError);
+                    // ignore
                 }
                 this.connection = null;
             }
         }
 
+        // voiceChannel hâlâ geçerli mi kontrol et
+        if (!this.voiceChannel?.id) return false;
         return await this.connect();
     }
 

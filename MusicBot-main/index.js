@@ -271,6 +271,13 @@ setTimeout(() => {
 
     // restoreSessions — also called by shard manager via broadcastEval
     client.restoreSessions = async function () {
+        // AGENT_MODE'da oturum restore etme — ses kanalları geçersiz olur
+        if (process.env.AGENT_MODE === 'true') {
+            await PlayerStateManager.clearAllStates?.().catch(() => {});
+            await cleanupAudioCache();
+            console.log(chalk.cyan('  [Agent] Oturum restore atlandı (AGENT_MODE)'));
+            return;
+        }
         const sid = client.shard?.ids?.[0] ?? 'N/A';
         console.log(chalk.cyan(`  [Shard ${sid}] 🔄  Starting session restore…`));
         await restoreSavedPlayers(client);
