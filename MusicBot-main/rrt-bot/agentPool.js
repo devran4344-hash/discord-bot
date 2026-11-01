@@ -46,7 +46,7 @@ function httpRequest(options, body = null) {
             });
         });
         req.on('error', reject);
-        req.setTimeout(5000, () => { req.destroy(); reject(new Error('timeout')); });
+        req.setTimeout(15000, () => { req.destroy(); reject(new Error('timeout')); }); // 5s → 15s
         if (body) req.write(JSON.stringify(body));
         req.end();
     });
