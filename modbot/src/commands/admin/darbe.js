@@ -9,6 +9,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  SlashCommandBuilder,
 } = require('discord.js');
 const crypto = require('crypto');
 const moment = require('moment');
@@ -797,6 +798,32 @@ module.exports = {
   description: 'Sunucuyu kilitler, Firebase\'e şifreli yedek alır ve 6 haneli kod üretir.',
   category: 'admin',
   cooldown: 10,
+
+  data: new SlashCommandBuilder()
+    .setName('darbe')
+    .setDescription('Sunucuyu kilitler ve şifreli yedek alır. Geri açmak için kodu gir.')
+    .addStringOption(o => o.setName('kod').setDescription('Geri yükleme kodu (6 haneli). Boş bırakırsan darbe başlatır.').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    let _replied = false;
+    const fakeMsg = {
+      guild: interaction.guild,
+      channel: interaction.channel,
+      member: interaction.member,
+      author: interaction.user,
+      client: interaction.client,
+      async reply(opts) {
+        if (typeof opts === 'string') opts = { content: opts };
+        if (_replied || interaction.replied || interaction.deferred) {
+          return interaction.followUp({ ...opts, fetchReply: true });
+        }
+        _replied = true;
+        return interaction.reply({ ...opts, fetchReply: true });
+      },
+    };
+    const code = interaction.options.getString('kod');
+    await this.execute(fakeMsg, code ? [code] : [], client);
+  },
 
   async execute(message, args, client) {
     const guild = message.guild;

@@ -190,6 +190,18 @@ setTimeout(() => {
     if (!global.clients) global.clients = {};
     global.clients.musicEmbedManager = client.musicEmbedManager;
 
+    // ── Agent Mode — HTTP API sunucusu (AGENT_MODE=true ise) ──────────────────
+    if (process.env.AGENT_MODE === 'true') {
+        const AgentServer = require('./src/agentServer');
+        client._agentServer = new AgentServer(client);
+        // Ready olduktan sonra başlat
+        client.once(Events.ClientReady, () => {
+            client._agentServer.start();
+        });
+        // Graceful shutdown'da kapat
+        process.once('beforeExit', () => client._agentServer?.stop());
+    }
+
     // ── Load commands ─────────────────────────────────────────────────────────
     const loadCommands = () => {
         const dir = path.join(__dirname, 'commands');

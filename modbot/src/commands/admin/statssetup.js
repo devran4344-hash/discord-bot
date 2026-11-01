@@ -1,4 +1,4 @@
-const { PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, ChannelType, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -10,6 +10,61 @@ module.exports = {
   usage: '!statssetup',
   category: 'admin',
   cooldown: 30000,
+
+  data: new SlashCommandBuilder()
+    .setName('statssetup')
+    .setDescription('Otomatik güncellenen istatistik kanalları oluşturur.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels),
+
+  async executeSlash(interaction, client) {
+    await interaction.deferReply({ flags: 64 });
+    try {
+      const category = await interaction.guild.channels.create({
+        name: '📊 Sunucu İstatistikleri',
+        type: ChannelType.GuildCategory,
+        permissionOverwrites: [{ id: interaction.guild.roles.everyone, deny: ['Connect', 'SendMessages'] }],
+      });
+
+      await interaction.guild.members.fetch().catch(() => null);
+      const total    = interaction.guild.memberCount;
+      const bots     = interaction.guild.members.cache.filter(m => m.user.bot).size;
+      const humans   = total - bots;
+      const channels = interaction.guild.channels.cache.filter(c => c.type === 0 || c.type === 2).size;
+      const boosts   = interaction.guild.premiumSubscriptionCount || 0;
+
+      const channelDefs = [
+        { name: `👥 Toplam Üye: ${total}`, key: 'totalMembersChannel' },
+        { name: `👤 Üye: ${humans}`, key: 'humansChannel' },
+        { name: `🤖 Bot: ${bots}`, key: 'botsChannel' },
+        { name: `📢 Kanal: ${channels}`, key: 'channelsChannel' },
+        { name: `💎 Boost: ${boosts}`, key: 'boostsChannel' },
+      ];
+
+      const created = [];
+      for (const def of channelDefs) {
+        const ch = await interaction.guild.channels.create({
+          name: def.name, type: ChannelType.GuildVoice, parent: category.id,
+          permissionOverwrites: [{ id: interaction.guild.roles.everyone, deny: ['Connect'] }],
+        });
+        created.push({ key: def.key, id: ch.id, name: def.name });
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      const configLines = created.map(c => `${c.key}: '${c.id}'`).join('\n');
+      await interaction.editReply({ embeds: [new EmbedBuilder()
+        .setColor(config.colors.success)
+        .setTitle(`${e.success} İstatistik Kanalları Oluşturuldu!`)
+        .setDescription('Kanallar oluşturuldu ve otomatik güncellenecek (10 dakikada bir).')
+        .addFields(
+          { name: '📁 Kategori', value: `${category}`, inline: true },
+          { name: '📊 Oluşturulan', value: `${created.length} kanal`, inline: true },
+          { name: '⏰ Güncelleme', value: 'Her 10 dakika', inline: true },
+          { name: '⚙️ config.js\'e Eklemesi Gereken', value: `\`\`\`js\nstatChannels: {\n  enabled: true,\n${configLines.split('\n').map(l => '  ' + l).join('\n')}\n}\`\`\``, inline: false },
+        ).setTimestamp()] });
+    } catch (err) {
+      await interaction.editReply({ embeds: [errorEmbed(`Kanallar oluşturulamadı: \`${err.message}\``)] });
+    }
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels))

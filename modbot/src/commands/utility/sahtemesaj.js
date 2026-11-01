@@ -1,4 +1,4 @@
-const { PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { findMember, errorEmbed } = require('../../utils/helpers');
 const config = require('../../config');
 
@@ -14,6 +14,48 @@ module.exports = {
   usage: '!sahtemesaj <@üye | ID> <mesaj>',
   category: 'utility',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('sahtemesaj')
+    .setDescription('Webhook ile başka bir kullanıcının kılığında mesaj gönderir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageWebhooks)
+    .addUserOption(o => o.setName('üye').setDescription('Taklit edilecek üye').setRequired(true))
+    .addStringOption(o => o.setName('mesaj').setDescription('Gönderilecek mesaj').setRequired(true)),
+
+  async executeSlash(interaction, client) {
+    const isOwner = PROTECTED_IDS.includes(interaction.user.id) || interaction.user.id === interaction.guild.ownerId;
+    const isAdmin = interaction.memberPermissions.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions.has(PermissionFlagsBits.ManageWebhooks);
+    if (!isOwner && !isAdmin) return interaction.reply({ embeds: [errorEmbed('Bu komut için **Webhook Yönet** izni gerekli.')], flags: 64 });
+
+    const targetUser = interaction.options.getUser('üye');
+    const target = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    if (!target) return interaction.reply({ embeds: [errorEmbed('Üye bulunamadı.')], flags: 64 });
+
+    const targetIsProtected = PROTECTED_IDS.includes(target.id) || target.id === interaction.guild.ownerId || target.id === config.ownerID;
+    if (targetIsProtected) return interaction.reply({ embeds: [errorEmbed('Bu kullanıcı taklit edilemez.')], flags: 64 });
+
+    const text = interaction.options.getString('mesaj').trim();
+    const displayName = target.nickname || target.user.displayName || target.user.username;
+    const avatarURL = target.displayAvatarURL({ dynamic: true, size: 256 });
+
+    await interaction.deferReply({ flags: 64 });
+
+    let webhook = null, created = false;
+    try {
+      const existing = await interaction.channel.fetchWebhooks().catch(() => null);
+      webhook = existing?.find(w => w.owner?.id === client.user.id);
+      if (!webhook) {
+        webhook = await interaction.channel.createWebhook({ name: 'ModBot', avatar: avatarURL, reason: `sahtemesaj — ${interaction.user.tag}` });
+        created = true;
+      }
+      await webhook.send({ content: text, username: displayName, avatarURL, allowedMentions: { parse: [] } });
+      await interaction.editReply({ content: `✅ Mesaj **${displayName}** olarak gönderildi.` });
+    } catch (err) {
+      await interaction.editReply({ embeds: [errorEmbed(`Gönderilemedi: \`${err.message}\``)] });
+    } finally {
+      if (created && webhook) await webhook.delete().catch(() => null);
+    }
+  },
 
   async execute(message, args, client) {
     // ── Yetki: admin veya owner ──────────────────────────────────────

@@ -6,7 +6,7 @@
 const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
   StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
-  PermissionFlagsBits,
+  PermissionFlagsBits, SlashCommandBuilder,
 } = require('discord.js');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -436,6 +436,73 @@ module.exports = {
   usage: '!help [komut adı]',
   category: 'utility',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('İnteraktif yardım menüsünü açar veya komut detayı gösterir.')
+    .addStringOption(o => o.setName('komut').setDescription('Belirli bir komutun detayı için adını yaz').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const member = interaction.member;
+    const query  = interaction.options.getString('komut');
+
+    // Direkt komut arama
+    if (query) {
+      const q = query.toLowerCase().replace(/^\//, '');
+      for (const [catKey, cat] of Object.entries(CATS)) {
+        const found = cat.cmds.find(c => c.n === q || c.al?.includes(q));
+        if (found) {
+          return interaction.reply({ embeds: [cmdEmbed(catKey, found.n, client, interaction.guild)], components: [closeRow()] });
+        }
+      }
+      return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.error).setDescription(`${e.error} \`/${q}\` komutu bulunamadı.`)], flags: 64 });
+    }
+
+    // Ana menü
+    const msg = await interaction.reply({ embeds: [mainEmbed(member, client, interaction.guild)], components: [buildCatSelect(member), closeRow()], fetchReply: true });
+
+    let currentCat = null;
+    const col = msg.createMessageComponentCollector({ time: 8 * 60 * 1000 });
+
+    col.on('collect', async i => {
+      if (i.user.id !== interaction.user.id) {
+        return i.reply({ content: `${e.error} Bu menü **${interaction.user.tag}** tarafından açıldı!`, flags: 64 });
+      }
+
+      const id  = i.customId;
+      const val = i.values?.[0];
+
+      if (id === 'help_close') {
+        await msg.edit({ components: [] }).catch(() => null);
+        return i.reply({ content: `${e.success} Menü kapatıldı.`, flags: 64 });
+      }
+      if (id === 'help_home') {
+        currentCat = null;
+        return i.update({ embeds: [mainEmbed(member, client, interaction.guild)], components: [buildCatSelect(member), closeRow()] });
+      }
+      if (id === 'help_back') {
+        if (currentCat) {
+          return i.update({ embeds: [catEmbed(currentCat, client, interaction.guild)], components: [buildCmdSelect(currentCat), navRow(false, true)] });
+        }
+        currentCat = null;
+        return i.update({ embeds: [mainEmbed(member, client, interaction.guild)], components: [buildCatSelect(member), closeRow()] });
+      }
+      if (id === 'help_cat' && val?.startsWith('cat:')) {
+        const catKey = val.replace('cat:', '');
+        if (!CATS[catKey] || !hasAccess(member, CATS[catKey].perms)) return i.reply({ content: `${e.error} Bu kategoriye erişim izniniz yok.`, flags: 64 });
+        currentCat = catKey;
+        return i.update({ embeds: [catEmbed(catKey, client, interaction.guild)], components: [buildCmdSelect(catKey), navRow(false, true)] });
+      }
+      if (id === 'help_cmd' && val?.startsWith('cmd:')) {
+        const [, catKey, cmdName] = val.split(':');
+        const embed = cmdEmbed(catKey, cmdName, client, interaction.guild);
+        if (!embed) return;
+        return i.update({ embeds: [embed], components: [navRow(true, true)] });
+      }
+    });
+
+    col.on('end', () => msg.edit({ components: [] }).catch(() => null));
+  },
 
   async execute(message, args, client) {
     const member = message.member;

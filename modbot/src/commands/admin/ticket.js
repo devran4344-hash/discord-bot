@@ -8,6 +8,7 @@ const {
   ActionRowBuilder, ButtonBuilder, ButtonStyle,
   StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
   ChannelType, ModalBuilder, TextInputBuilder, TextInputStyle,
+  SlashCommandBuilder,
 } = require('discord.js');
 const { errorEmbed, sendLog, discordTimestamp, formatDate, isModerator } = require('../../utils/helpers');
 const {
@@ -529,9 +530,51 @@ module.exports = {
   category: 'admin',
   cooldown: 5000,
 
+  data: new SlashCommandBuilder()
+    .setName('ticket')
+    .setDescription('Ticket panel mesajını gönderir.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o => o.setName('kanal').setDescription('Panelin gönderileceği kanal (boş = mevcut)').addChannelTypes(ChannelType.GuildText).setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels))
+      return interaction.reply({ embeds: [errorEmbed('**Kanalları Yönet** iznine ihtiyacın var.')], flags: 64 });
+
+    const targetChannel = interaction.options.getChannel('kanal') || interaction.channel;
+    const types = config.ticket.types || [];
+
+    const panelEmbed = new EmbedBuilder()
+      .setColor(config.colors.ticket)
+      .setAuthor({ name: `${interaction.guild.name} — Destek Merkezi`, iconURL: interaction.guild.iconURL({ dynamic: true }) })
+      .setTitle('🎫 Destek Talebi Oluştur')
+      .setDescription(
+        '> Aşağıdaki **Ticket Aç** butonuna tıklayarak destek ekibimize ulaşabilirsin.\n\n' +
+        '> ⚠️ Lütfen **gereksiz ticket açmaktan** kaçın.\n' +
+        '> 📌 Sorununu **detaylıca** açıkla.\n' +
+        '> ⏰ Ortalama yanıt süresi: **~15 dakika**',
+      )
+      .addFields(
+        types.length > 0
+          ? { name: '📋 Ticket Türleri', value: types.map(t => `> ${t.emoji} **${t.label}** — ${t.description}`).join('\n'), inline: false }
+          : { name: '💬 Destek', value: '> Her türlü sorun için ticket açabilirsin.', inline: false },
+        { name: '\u200b', value: '\u200b', inline: false },
+      )
+      .setImage(interaction.guild.bannerURL({ size: 1024 }) || null)
+      .setFooter({ text: `${interaction.guild.name} Destek Sistemi • Bugün ${new Date().toLocaleDateString('tr-TR')}`, iconURL: interaction.guild.iconURL({ dynamic: true }) })
+      .setTimestamp();
+
+    const openRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ticket_open').setLabel('Ticket Aç').setEmoji('🎫').setStyle(ButtonStyle.Primary),
+    );
+
+    await targetChannel.send({ embeds: [panelEmbed], components: [openRow] });
+    await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.success).setDescription(`✅ Ticket paneli ${targetChannel} kanalına gönderildi.`)], flags: 64 });
+  },
+
   // Ana interaction handler — interactionCreate'ten çağrılır
   handleInteraction: async (interaction, client) => {
-    const id = interaction.customId || interaction.values?.[0];
+    // Select menu ise seçilen değeri, buton ise customId'yi kullan
+    const id = interaction.values?.length ? interaction.values[0] : interaction.customId;
     if (!id) return;
 
     if (id === 'ticket_open')           return handleTicketOpen(interaction, client);

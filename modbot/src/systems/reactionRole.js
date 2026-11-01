@@ -3,7 +3,7 @@
 // ║  !rr setup, !rr add, !rr remove, !rr list                          ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../config');
 const e      = require('../emojiConfig');
 const fs     = require('fs');
@@ -29,6 +29,96 @@ module.exports = {
   usage: '!rr <setup|ekle|kaldır|liste>',
   category: 'admin',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('rr')
+    .setDescription('Reaction Role sistemi — butonla rol al/bırak.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addSubcommand(sub => sub.setName('setup').setDescription('Yeni rol paneli oluştur').addStringOption(o => o.setName('başlık').setDescription('Panel başlığı').setRequired(false)))
+    .addSubcommand(sub => sub.setName('ekle').setDescription('Panele rol ekle')
+      .addStringOption(o => o.setName('mesaj_id').setDescription('Panel mesaj ID\'si').setRequired(true))
+      .addStringOption(o => o.setName('emoji').setDescription('Emoji (unicode veya <:ad:id>)').setRequired(true))
+      .addRoleOption(o => o.setName('rol').setDescription('Verilecek rol').setRequired(true)))
+    .addSubcommand(sub => sub.setName('kaldır').setDescription('Panelden rol kaldır')
+      .addStringOption(o => o.setName('mesaj_id').setDescription('Panel mesaj ID\'si').setRequired(true))
+      .addStringOption(o => o.setName('emoji').setDescription('Kaldırılacak emoji').setRequired(true)))
+    .addSubcommand(sub => sub.setName('liste').setDescription('Tüm panelleri listele')),
+
+  async executeSlash(interaction, client) {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'setup') {
+      const title = interaction.options.getString('başlık') || 'Rol Seç';
+      const panelEmbed = new EmbedBuilder()
+        .setColor(config.colors.primary)
+        .setTitle(`🎭 ${title}`)
+        .setDescription('Aşağıdaki butonlara tıklayarak rol alabilir veya bırakabilirsin.\nAynı butona tekrar tıklayarak rolü bırakabilirsin.')
+        .setFooter({ text: `${interaction.guild.name} • Reaction Role Sistemi` })
+        .setTimestamp();
+      const sentMsg = await interaction.channel.send({ embeds: [panelEmbed] });
+      const data = readRR();
+      if (!data[interaction.guild.id]) data[interaction.guild.id] = {};
+      data[interaction.guild.id][sentMsg.id] = {};
+      writeRR(data);
+      await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.success)
+        .setDescription(`${e.success} Panel oluşturuldu! Şimdi \`/rr ekle\` ile roller ekle.`)
+        .addFields({ name: '📌 Panel ID', value: `\`${sentMsg.id}\``, inline: true })], flags: 64 });
+      return;
+    }
+
+    if (sub === 'ekle') {
+      const msgId = interaction.options.getString('mesaj_id');
+      const emoji = interaction.options.getString('emoji');
+      const role  = interaction.options.getRole('rol');
+      const data = readRR();
+      if (!data[interaction.guild.id]?.[msgId]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.error).setDescription(`${e.error} Bu ID'de kayıtlı panel yok.`)], flags: 64 });
+
+      let panelMsg;
+      try { panelMsg = await interaction.channel.messages.fetch(msgId); }
+      catch { return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.error).setDescription(`${e.error} Mesaj bulunamadı. Aynı kanalda olmalısın.`)], flags: 64 }); }
+
+      data[interaction.guild.id][msgId][emoji] = role.id;
+      writeRR(data);
+
+      const existingRows = panelMsg.components.map(r => ActionRowBuilder.from(r));
+      const allButtons = existingRows.flatMap(r => r.components);
+      allButtons.push(new ButtonBuilder().setCustomId(`rr_${msgId}_${role.id}`).setLabel(role.name).setEmoji(emoji).setStyle(ButtonStyle.Secondary));
+      const rows = [];
+      for (let i = 0; i < allButtons.length; i += 5) rows.push(new ActionRowBuilder().addComponents(allButtons.slice(i, i + 5)));
+      const oldEmbed = EmbedBuilder.from(panelMsg.embeds[0]);
+      const fields = oldEmbed.data.fields || [];
+      fields.push({ name: `${emoji} ${role.name}`, value: `> <@&${role.id}>`, inline: true });
+      oldEmbed.setFields(fields);
+      await panelMsg.edit({ embeds: [oldEmbed], components: rows.slice(0, 5) });
+      await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.success).setDescription(`${e.success} **${emoji} → ${role.name}** bağlantısı eklendi!`)], flags: 64 });
+      return;
+    }
+
+    if (sub === 'kaldır') {
+      const msgId = interaction.options.getString('mesaj_id');
+      const emoji = interaction.options.getString('emoji');
+      const data = readRR();
+      if (!data[interaction.guild.id]?.[msgId]?.[emoji]) return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.error).setDescription(`${e.error} Bu emoji bu panelde kayıtlı değil.`)], flags: 64 });
+      delete data[interaction.guild.id][msgId][emoji];
+      writeRR(data);
+      await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.success).setDescription(`${e.success} **${emoji}** bağlantısı kaldırıldı.`)], flags: 64 });
+      return;
+    }
+
+    if (sub === 'liste') {
+      const data = readRR();
+      const panels = data[interaction.guild.id] || {};
+      const entries = Object.entries(panels);
+      if (!entries.length) return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.info).setDescription(`${e.info} Henüz bir panel yok.`)], flags: 64 });
+      const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('🎭 Reaction Role Panelleri').setTimestamp();
+      entries.forEach(([msgId, roles]) => {
+        const roleEntries = Object.entries(roles).map(([em, roleId]) => { const role = interaction.guild.roles.cache.get(roleId); return `> ${em} → ${role ? `<@&${roleId}>` : `\`${roleId}\` (silinmiş)`}`; });
+        embed.addFields({ name: `📌 Panel \`${msgId}\``, value: roleEntries.length ? roleEntries.join('\n') : 'Henüz rol eklenmemiş', inline: false });
+      });
+      await interaction.reply({ embeds: [embed], flags: 64 });
+      return;
+    }
+  },
 
   async execute(message, args, client) {
     const { PermissionFlagsBits } = require('discord.js');

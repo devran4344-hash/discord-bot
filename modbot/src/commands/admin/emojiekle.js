@@ -3,7 +3,7 @@
 // ║  URL'den, dosyadan veya başka bir emojiden kopyala                 ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { PermissionFlagsBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { errorEmbed, discordTimestamp, sendLog } = require('../../utils/helpers');
 const config = require('../../config');
 const e      = require('../../emojiConfig');
@@ -16,6 +16,73 @@ module.exports = {
   example: '!emojiekle mutlu https://i.imgur.com/xxx.png',
   category: 'admin',
   cooldown: 5000,
+
+  data: new SlashCommandBuilder()
+    .setName('emojiekle')
+    .setDescription('Sunucuya emoji ekler (URL, dosya veya emoji kopyala).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageEmojisAndStickers)
+    .addStringOption(o => o.setName('isim').setDescription('Emoji ismi (harf, rakam, _)').setRequired(true))
+    .addStringOption(o => o.setName('url').setDescription('Resim URL veya <:emoji:id> formatı').setRequired(false))
+    .addAttachmentOption(o => o.setName('dosya').setDescription('Resim dosyası yükle').setRequired(false)),
+
+  async executeSlash(interaction, client) {
+    const emojiName = interaction.options.getString('isim').replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
+    if (emojiName.length < 2) return interaction.reply({ embeds: [errorEmbed('Emoji ismi en az 2 karakter olmalı.')], flags: 64 });
+
+    const existing = interaction.guild.emojis.cache.find(em => em.name === emojiName);
+    if (existing) return interaction.reply({ embeds: [errorEmbed(`\`${emojiName}\` isimli emoji zaten var: ${existing}`)], flags: 64 });
+
+    let emojiImage = null;
+    const attachment = interaction.options.getAttachment('dosya');
+    const urlArg    = interaction.options.getString('url');
+
+    if (attachment) {
+      if (!attachment.contentType?.startsWith('image/')) return interaction.reply({ embeds: [errorEmbed('Sadece resim dosyaları desteklenir.')], flags: 64 });
+      emojiImage = attachment.url;
+    } else if (urlArg) {
+      const emojiMatch = urlArg.match(/^<(a?):([^:]+):(\d+)>$/);
+      if (emojiMatch) {
+        const animated = emojiMatch[1] === 'a';
+        emojiImage = `https://cdn.discordapp.com/emojis/${emojiMatch[3]}.${animated ? 'gif' : 'png'}`;
+      } else if (/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i.test(urlArg)) {
+        emojiImage = urlArg;
+      }
+    }
+
+    if (!emojiImage) return interaction.reply({ embeds: [errorEmbed('Resim kaynağı belirt: URL veya dosya yükle.')], flags: 64 });
+
+    const maxEmojis = interaction.guild.premiumTier === 3 ? 500 : interaction.guild.premiumTier === 2 ? 300 : interaction.guild.premiumTier === 1 ? 200 : 100;
+    if (interaction.guild.emojis.cache.size >= maxEmojis) return interaction.reply({ embeds: [errorEmbed(`Sunucu emoji limiti doldu! (\`${interaction.guild.emojis.cache.size}/${maxEmojis}\`)`)], flags: 64 });
+
+    await interaction.deferReply({ flags: 64 });
+    try {
+      const newEmoji = await interaction.guild.emojis.create({ attachment: emojiImage, name: emojiName, reason: `${interaction.user.tag} tarafından eklendi` });
+      await interaction.editReply({ embeds: [new EmbedBuilder()
+        .setColor(config.colors.success)
+        .setAuthor({ name: 'Emoji Eklendi!', iconURL: interaction.guild.iconURL({ dynamic: true }) })
+        .setDescription(`${newEmoji} Emoji başarıyla eklendi!`)
+        .setThumbnail(newEmoji.imageURL({ size: 256 }))
+        .addFields(
+          { name: '🏷️ İsim', value: `\`:${newEmoji.name}:\``, inline: true },
+          { name: '🆔 ID', value: `\`${newEmoji.id}\``, inline: true },
+          { name: '✨ Animasyonlu', value: newEmoji.animated ? '✅ Evet (GIF)' : '❌ Hayır', inline: true },
+          { name: '📋 Kullanım Kodu', value: `\`${newEmoji.animated ? `<a:${newEmoji.name}:${newEmoji.id}>` : `<:${newEmoji.name}:${newEmoji.id}>`}\``, inline: false },
+          { name: '👮 Ekleyen', value: interaction.user.tag, inline: true },
+          { name: '📅 Tarih', value: discordTimestamp(new Date(), 'R'), inline: true },
+          { name: '📊 Sunucu Emojileri', value: `\`${interaction.guild.emojis.cache.size}/${maxEmojis}\``, inline: true },
+        ).setTimestamp()] });
+      await sendLog(interaction.guild, 'serverLog', new EmbedBuilder()
+        .setColor(config.colors.success).setTitle('😀 Emoji Eklendi').setThumbnail(newEmoji.imageURL({ size: 128 }))
+        .addFields(
+          { name: '🏷️ İsim', value: `${newEmoji} \`:${newEmoji.name}:\``, inline: true },
+          { name: '🆔 ID', value: `\`${newEmoji.id}\``, inline: true },
+          { name: '👮 Ekleyen', value: `${interaction.user.tag}\n\`${interaction.user.id}\``, inline: true },
+          { name: '📅 Tarih', value: discordTimestamp(new Date(), 'F'), inline: true },
+        ).setTimestamp());
+    } catch (err) {
+      await interaction.editReply({ embeds: [errorEmbed(`Emoji eklenemedi: \`${err.message}\``)] });
+    }
+  },
 
   async execute(message, args, client) {
     if (!message.member.permissions.has(PermissionFlagsBits.ManageEmojisAndStickers)) {
