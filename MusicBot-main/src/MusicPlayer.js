@@ -419,6 +419,10 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
     }
 
     async connect() {
+        // voiceChannel null kontrolü
+        if (!this.voiceChannel || !this.voiceChannel.id) {
+            throw new Error('voiceChannel is null or has no id');
+        }
         try {
             // Wait for guild's WebSocket to be ready (critical for sharding)
             if (!this.guild.voiceAdapterCreator) {
@@ -471,7 +475,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
     }
 
     async moveToChannel(newChannel) {
-        if (!newChannel) return false;
+        if (!newChannel || !newChannel.id) return false;
 
         this.voiceChannel = newChannel;
 

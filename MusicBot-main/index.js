@@ -405,6 +405,11 @@ setTimeout(() => {
             console.log(chalk.yellow('  ⚠  Network error — continuing…'));
             return;
         }
+        // AbortError = voice bağlantı timeout, bot kapatılmamalı
+        if (err.code === 'ABORT_ERR' || err.name === 'AbortError' || /operation was aborted/i.test(err.message || '')) {
+            console.log(chalk.yellow('  ⚠  Voice AbortError — continuing…'));
+            return;
+        }
         console.error(chalk.red('  ❌  Uncaught exception:'), err);
         gracefulShutdown('UNCAUGHT_EXCEPTION');
     });
