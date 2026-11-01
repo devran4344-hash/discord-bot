@@ -80,7 +80,16 @@ module.exports = {
             })
             .setTimestamp();
 
-        if (body.isPlaylist) {
+        if (body.async) {
+            // Async mod — şarkı arka planda işleniyor
+            embed
+                .setTitle('🎵 İstek Gönderildi')
+                .setDescription(
+                    `> 🔍 **${query}** aranıyor...\n` +
+                    `> 🔊 Kanal: ${voiceChannel}\n` +
+                    `> 🤖 Bot: **${agent.name}**`
+                );
+        } else if (body.isPlaylist) {
             embed
                 .setTitle('📋 Playlist Eklendi')
                 .setDescription(

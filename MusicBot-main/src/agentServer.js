@@ -129,8 +129,7 @@ class AgentServer {
                     if (!textChannel)  return this.json(res, 404, { error: 'Text channel not found' });
 
                     // MusicPlayer al veya oluştur
-                    const MusicPlayer     = require('./MusicPlayer');
-                    const MusicEmbedMgr   = require('./MusicEmbedManager');
+                    const MusicPlayer   = require('./MusicPlayer');
 
                     let player = this.client.players.get(guildId);
                     if (!player) {
@@ -141,32 +140,43 @@ class AgentServer {
                         if (!player.connection) player.voiceChannel = voiceChannel;
                     }
 
-                    // Ses kanalına bağlan
-                    if (!player.connection) {
-                        await player.connect();
-                    }
-
-                    // Şarkıyı kuyruğa ekle
-                    const result = await player.addTrack(query, requestedBy || 'RRT');
-
-                    if (!result.success) {
-                        return this.json(res, 400, { error: result.message || 'Could not add track' });
-                    }
-
-                    // Now-playing embed gönder
-                    const embedMgr = this.client.musicEmbedManager
-                        || (global.clients?.musicEmbedManager);
-                    if (embedMgr) {
-                        await embedMgr.updateNowPlayingEmbed(player).catch(() => {});
-                    }
-
-                    return this.json(res, 200, {
+                    // HTTP'ye hemen OK dön, ses bağlantısı + çalma arka planda
+                    this.json(res, 200, {
                         ok:      true,
                         agentId: parseInt(process.env.AGENT_ID) || 1,
-                        tracks:  result.tracks?.map(t => ({ title: t.title, artist: t.artist, duration: t.duration })),
-                        isPlaylist: result.isPlaylist,
-                        position:   result.position,
+                        async:   true,
+                        message: 'Processing...',
                     });
+
+                    // Arka planda bağlan ve çal
+                    (async () => {
+                        try {
+                            if (!player.connection) {
+                                await player.connect();
+                            }
+
+                            const result = await player.addTrack(query, requestedBy || 'RRT');
+
+                            if (!result.success) {
+                                console.error(`[AgentServer] addTrack failed: ${result.message}`);
+                                if (textChannel) {
+                                    textChannel.send(`❌ ${result.message || 'Şarkı eklenemedi.'}`).catch(() => {});
+                                }
+                                return;
+                            }
+
+                            // Now-playing embed gönder
+                            const embedMgr = this.client.musicEmbedManager || global.clients?.musicEmbedManager;
+                            if (embedMgr) {
+                                await embedMgr.updateNowPlayingEmbed(player).catch(() => {});
+                            }
+                        } catch (err) {
+                            console.error('[AgentServer] Async play error:', err.message);
+                            if (textChannel) {
+                                textChannel.send(`❌ Çalma hatası: ${err.message}`).catch(() => {});
+                            }
+                        }
+                    })();
                 }
 
                 // ── POST /skip ────────────────────────────────────────────────
