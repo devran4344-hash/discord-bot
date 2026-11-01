@@ -186,9 +186,18 @@ class AgentServer {
                             }
                         } catch (err) {
                             console.error('[AgentServer] Async play error:', err.message);
-                            textChannel.send(`❌ Çalma hatası: \`${err.message}\``).catch(() => {});
+                            // AbortError = ses kanalına bağlanma timeout, kullanıcıya hata ver
+                            if (err.code === 'ABORT_ERR' || err.name === 'AbortError' || /aborted/i.test(err.message)) {
+                                textChannel.send(`❌ Ses kanalına bağlanılamadı. Lütfen tekrar dene.`).catch(() => {});
+                            } else {
+                                textChannel.send(`❌ Çalma hatası: \`${err.message}\``).catch(() => {});
+                            }
+                            // Başarısız player'ı temizle
+                            this.client.players.delete(guildId);
                         }
                     })();
+
+                    return; // ← kritik: 404 handler'a düşmesin
                 }
 
                 // ── POST /skip ────────────────────────────────────────────────
@@ -229,11 +238,15 @@ class AgentServer {
                 }
 
                 // ── 404 ───────────────────────────────────────────────────────
-                this.json(res, 404, { error: `Unknown endpoint: ${method} ${url}` });
+                if (!res.headersSent) {
+                    this.json(res, 404, { error: `Unknown endpoint: ${method} ${url}` });
+                }
 
             } catch (err) {
                 console.error(chalk.red('[AgentServer] Request error:'), err.message);
-                this.json(res, 500, { error: 'Internal server error', message: err.message });
+                if (!res.headersSent) {
+                    this.json(res, 500, { error: 'Internal server error', message: err.message });
+                }
             }
         });
 
