@@ -181,14 +181,44 @@ async function closeTicket(guildId, channelId, closedBy) {
     if (!ticket) return null;
     ticket.status = 'closed';
     ticket.closedAt = Date.now();
-    ticket.closedBy = closedBy;
+    ticket.closedBy = closedBy || 'Sistem';
     await _set('tickets', key, ticket);
 
-    const userKey = `user_${guildId}_${ticket.userId}`;
-    const userTickets = ((await _get('tickets', userKey)) || []).filter((id) => id !== channelId);
-    await _set('tickets', userKey, userTickets);
+    // Kullanıcının aktif listesinden temizle
+    if (ticket.userId) {
+        const userKey  = `user_${guildId}_${ticket.userId}`;
+        const userList = ((await _get('tickets', userKey)) || []).filter(id => id !== channelId);
+        await _set('tickets', userKey, userList);
+    }
 
     return ticket;
+}
+
+// Kanal silinince (channelDelete event) listeyi temizler
+// closeTicket çağrılmadan kanal silindiyse bu güvenlik ağıdır
+async function removeTicketChannel(guildId, channelId) {
+    try {
+        const key    = `${guildId}_${channelId}`;
+        const ticket = await _get('tickets', key);
+        if (!ticket) return; // zaten yok
+
+        if (ticket.status !== 'closed') {
+            // Kapatılmadan silindi — kaydı kapat
+            ticket.status   = 'closed';
+            ticket.closedAt = Date.now();
+            ticket.closedBy = 'Kanal Silindi (Otomatik)';
+            await _set('tickets', key, ticket);
+        }
+
+        // Kullanıcının aktif listesinden temizle
+        if (ticket.userId) {
+            const userKey  = `user_${guildId}_${ticket.userId}`;
+            const userList = ((await _get('tickets', userKey)) || []).filter(id => id !== channelId);
+            await _set('tickets', userKey, userList);
+        }
+    } catch (e) {
+        console.error('[db] removeTicketChannel hatası:', e.message);
+    }
 }
 
 async function getUserActiveTickets(guildId, userId) {
@@ -316,7 +346,7 @@ module.exports = {
     // Küfür
     getBadwordCount, incrementBadwordCount, resetBadwordCount,
     // Ticket
-    createTicket, getTicket, updateTicket, closeTicket,
+    createTicket, getTicket, updateTicket, closeTicket, removeTicketChannel,
     getUserActiveTickets, getTicketNumber,
     // Mute
     saveMute, getMute, removeMute,

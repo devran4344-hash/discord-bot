@@ -34,6 +34,14 @@ module.exports = [
   {
     name: 'channelDelete', once: false,
     async execute(channel, client) {
+      // ── Ticket temizliği (kanal silinince Firebase'deki aktif ticket kaydını temizle) ──
+      if (channel.guild) {
+        try {
+          const { removeTicketChannel } = require('../utils/database');
+          await removeTicketChannel(channel.guild.id, channel.id);
+        } catch { /* ticket değilse sessizce geç */ }
+      }
+
       if (!channel.guild || !config.logging.channelDelete) return;
       const exec = await getExec(channel.guild, AuditLogEvent.ChannelDelete);
       await sendLog(channel.guild, 'serverLog', new EmbedBuilder()
