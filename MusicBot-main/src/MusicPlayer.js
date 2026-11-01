@@ -419,11 +419,7 @@ this.audioPlayer.on(AudioPlayerStatus.Playing, () => {
     }
 
     async connect() {
-        
-        if (this.connection && !this._stateLoggerAttached) {
-            this._stateLoggerAttached = true;
-        }
-try {
+        try {
             // Wait for guild's WebSocket to be ready (critical for sharding)
             if (!this.guild.voiceAdapterCreator) {
                 // Wait up to 10 seconds for the adapter to become available

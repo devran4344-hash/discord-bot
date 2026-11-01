@@ -97,13 +97,22 @@ jobs:
           node <<'NODEEOF'
           const fs = require("fs");
           const p = "src/MusicPlayer.js";
-          const lines = fs.readFileSync(p, "utf8").split("\n");
+          let c = fs.readFileSync(p, "utf8");
+
+          // connect() fonksiyonundaki bozuk _stateLoggerAttached bloğunu düzelt
+          c = c.replace(
+            /async connect\(\)\s*\{[\s\S]*?if\s*\(this\.connection[\s\S]*?_stateLoggerAttached[\s\S]*?\}\s*\ntry\s*\{/,
+            'async connect() {\n        try {'
+          );
+
+          // Gereksiz satırları temizle
+          const lines = c.split("\n");
           const cleaned = lines.filter(l =>
             !l.includes("console.log([Voice]") &&
             !l.includes("_stateLoggerAttached")
           );
           fs.writeFileSync(p, cleaned.join("\n"));
-          console.log("CLEAN:", lines.length - cleaned.length, "satır silindi");
+          console.log("CLEAN OK");
           NODEEOF
           node --check src/MusicPlayer.js && echo "✅ MusicPlayer.js sözdizimi geçerli" || exit 1
 
