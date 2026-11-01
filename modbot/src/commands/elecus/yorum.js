@@ -5,16 +5,16 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('yorum')
         .setDescription('Sahte YouTube yorumu oluşturur')
-        .addUserOption(opt =>
-            opt.setName('kullanici')
-                .setDescription('Yorumu yapan kullanıcı (boş = sen)')
-                .setRequired(false)
-        )
         .addStringOption(opt =>
             opt.setName('yorum')
                 .setDescription('Yorum metni')
                 .setRequired(true)
                 .setMaxLength(200)
+        )
+        .addUserOption(opt =>
+            opt.setName('kullanici')
+                .setDescription('Yorumu yapan kullanıcı (boş = sen)')
+                .setRequired(false)
         ),
     async execute(interaction) {
         await interaction.deferReply();
