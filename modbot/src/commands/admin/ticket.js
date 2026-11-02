@@ -199,8 +199,25 @@ async function handleTicketOpen(interaction, client) {
   const guild  = interaction.guild;
   const cfg    = config.ticket;
 
-  // Aktif ticket limiti
-  const activeTickets = await getUserActiveTickets(guild.id, member.id);
+  // Aktif ticket limiti — artık kanal varlığını da kontrol eder
+  const activeTicketIds = await getUserActiveTickets(guild.id, member.id);
+
+  // Kanallar gerçekten var mı kontrol et, yoksa listeden temizle
+  const validTickets = [];
+  for (const chId of activeTicketIds) {
+    const ch = guild.channels.cache.get(chId)
+             || await guild.channels.fetch(chId).catch(() => null);
+    if (ch) {
+      validTickets.push(chId);
+    } else {
+      // Kanal yok — Firebase'den temizle
+      const { removeTicketChannel } = require('../../utils/database');
+      await removeTicketChannel(guild.id, chId).catch(() => {});
+    }
+  }
+
+  const activeTickets = validTickets;
+
   if (activeTickets.length >= cfg.maxTicketsPerUser) {
     return interaction.reply({
       embeds: [new EmbedBuilder()
