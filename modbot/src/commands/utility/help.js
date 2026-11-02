@@ -249,6 +249,106 @@ const CATS = {
         det:['Hesap yaşı config.js\'ten değiştirilebilir.','Kick edilen kişi loglanır.'], al:[], cd:'Otomatik' },
     ],
   },
+
+  transfer: {
+    label: '⚽ Transfer Sistemi', emoji: '⚽',
+    desc:  'Oyuncu sign, release, loan ve maç kayıt komutları',
+    perms: 'everyone',
+    cmds: [
+      { n:'sign',       u:'/sign @oyuncu [tip]',              d:'Takımına oyuncu veya menajer sign teklifi gönderir.',
+        det:[
+          'Sadece **Başkan** veya **Başkan Yardımcısı** kullanabilir.',
+          'Karşı oyuncuya DM ile teklif gönderilir.',
+          'Oyuncu **Kabul** veya **Reddet** butonuyla yanıtlar.',
+          'Teklif **2 dakika** içinde yanıtlanmazsa iptal olur.',
+          '**Kural 5:** Önceki takımında 1 maç oynamadan sign olunamaz.',
+          '**Kural 2:** Kadro dolu (11) ise önce release gerekli.',
+          '**Kural 3-4:** Menajer için özel limit kontrolü yapılır.',
+        ], al:[], cd:'—' },
+
+      { n:'release',    u:'/release @oyuncu [sebep]',         d:'Oyuncuyu takımdan çıkarır — onay gerekmez.',
+        det:[
+          'Sadece **Başkan** veya **Başkan Yardımcısı** kullanabilir.',
+          'Kendi takımındaki oyuncuyu çıkarabilirsin.',
+          'Onay butonuna gerek yok — direkt işlem.',
+          'Oyuncuya DM ile bildirim gönderilir.',
+          'Takım rolü alınır, Üye rolü geri verilir.',
+          'Transfer log kanalına embed gönderilir.',
+        ], al:[], cd:'—' },
+
+      { n:'loan',       u:'/loan @oyuncu <kaç_maç> <takım>',  d:'Oyuncuyu geçici olarak başka takıma loan eder.',
+        det:[
+          'Sadece **Başkan** veya **Başkan Yardımcısı** kullanabilir.',
+          '**Kural 1:** Maksimum **3 maç** loan yapılabilir.',
+          'Asıl takım rolü alınmaz, hedef takım rolü eklenir.',
+          'Loan süresi dolunca `/macoynadim` ile otomatik biter.',
+          'Oyuncuya DM bildirim gönderilir.',
+        ], al:[], cd:'—' },
+
+      { n:'macoynadim', u:'/macoynadim',                      d:'Maç oynadığını kaydeder — transfer kilidi ve loan için zorunlu.',
+        det:[
+          'Her resmi maçtan sonra kullanılması **zorunlu**.',
+          '**Kural 5** için maç sayacını artırır.',
+          'Loan\'daysan kalan maç sayısını azaltır.',
+          'Loan süresi bitince asıl takımına otomatik dönersin.',
+          'Maç bilgisi Firebase\'de kalıcı saklanır.',
+        ], al:[], cd:'—' },
+    ],
+  },
+
+  gorsel: {
+    label: '🎨 Görsel Komutlar', emoji: '🎨',
+    desc:  'Canvas efektleri, AI görsel, şablon görseller',
+    perms: 'everyone',
+    cmds: [
+      { n:'wasted',     u:'/wasted [@kullanıcı]',    d:'GTA V "WASTED" efekti uygular.',              det:['some-random-api kullanır.','Belirtilmezse sana uygulanır.'], al:[], cd:'3sn' },
+      { n:'triggered',  u:'/triggered [@kullanıcı]', d:'Titrek "TRIGGERED" GIF efekti.',              det:['Animasyonlu GIF döner.'], al:[], cd:'3sn' },
+      { n:'pixelate',   u:'/pixelate [@kullanıcı]',  d:'Profil fotoğrafını pikselleştirir.',           det:[], al:[], cd:'3sn' },
+      { n:'jail',       u:'/jail [@kullanıcı]',       d:'Kafes arkasına koyar.',                       det:[], al:[], cd:'3sn' },
+      { n:'blur',       u:'/blur [@kullanıcı]',       d:'Profil fotoğrafını bulanıklaştırır.',         det:[], al:[], cd:'3sn' },
+      { n:'greyscale',  u:'/greyscale [@kullanıcı]',  d:'Profil fotoğrafını siyah-beyaz yapar.',      det:[], al:[], cd:'3sn' },
+      { n:'yorum',      u:'/yorum <yorum> [@kullanıcı]', d:'Sahte YouTube yorumu oluşturur.',          det:[], al:[], cd:'3sn' },
+      { n:'renk',       u:'/renk <hex>',              d:'Hex renk kodunu görsel + RGB bilgisiyle gösterir.', det:[], al:[], cd:'3sn' },
+      { n:'wanted',     u:'/wanted <@kullanıcı>',     d:'"Aranıyor" posteri oluşturur.',               det:['elecus.dev kullanır.'], al:[], cd:'3sn' },
+      { n:'ship',       u:'/ship <@k1> <@k2>',        d:'İki kişiyi ship eder, kalp görsel.',          det:[], al:[], cd:'3sn' },
+      { n:'tweet',      u:'/tweet <@kullanıcı> <mesaj>', d:'Sahte tweet görseli oluşturur.',           det:[], al:[], cd:'3sn' },
+      { n:'hayal',      u:'/hayal <prompt> [model] [boyut]', d:'AI ile görsel oluşturur — key gerektirmez!', det:['Pollinations.ai FLUX modeli.','Ücretsiz, hesap gerekmez.','Model: flux/turbo | Boyut: 4 seçenek'], al:[], cd:'30sn' },
+      { n:'turk',       u:'/turk <@kullanıcı>',       d:'Türk bayrağı efekti uygular.',                det:[], al:[], cd:'3sn' },
+      { n:'qr',         u:'/qr <yazı>',               d:'QR kod oluşturur.',                          det:[], al:[], cd:'3sn' },
+      { n:'resimai',    u:'/resimai <prompt>',         d:'AI ile resim oluşturur (elecus.dev).',       det:[], al:[], cd:'5sn' },
+      { n:'emojibir',   u:'/emojibir <emoji1> <emoji2>', d:'İki emojiyi birleştirir.',                det:[], al:[], cd:'3sn' },
+    ],
+  },
+
+  anime: {
+    label: '🎭 Anime & GIF', emoji: '🎭',
+    desc:  'Anime aksiyon GIFleri — sarılma, tokat, öpücük...',
+    perms: 'everyone',
+    cmds: [
+      { n:'hug',        u:'/hug <@kullanıcı>',        d:'Birine sarılırsın 🤗',   det:['nekos.best/animu'], al:[], cd:'3sn' },
+      { n:'pat',        u:'/pat <@kullanıcı>',         d:'Kafa okşarsın 🥺',       det:['nekos.best/animu'], al:[], cd:'3sn' },
+      { n:'kiss',       u:'/kiss <@kullanıcı>',        d:'Öpücük verirsin 💋',     det:['nekos.best/animu'], al:[], cd:'3sn' },
+      { n:'slap',       u:'/slap <@kullanıcı>',        d:'Tokat atarsın 👋',       det:['nekos.best/animu'], al:[], cd:'3sn' },
+      { n:'punch',      u:'/punch <@kullanıcı>',       d:'Yumruk atarsın 👊',      det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'bonk',       u:'/bonk <@kullanıcı>',        d:'Bonk vurursun 🔨',       det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'tekme',      u:'/tekme <@kullanıcı>',       d:'Tekme atarsın 🦵',       det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'saril',      u:'/saril <@k1> <@k2>',        d:'İki kişi sarılır',       det:['elecus.dev'], al:[], cd:'3sn' },
+      { n:'dans',       u:'/dans [@kullanıcı]',         d:'Dans GIF gösterir 💃',   det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'cry',        u:'/cry [@kullanıcı]',          d:'Ağlama GIF 😭',          det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'blush',      u:'/blush [@kullanıcı]',        d:'Utanma GIF 😳',          det:['nekos.best'], al:[], cd:'3sn' },
+      { n:'selam',      u:'/selam [@kullanıcı]',        d:'El sallama GIF 👋',      det:['nekos.best'], al:[], cd:'3sn' },
+    ],
+  },
+
+  hayvan: {
+    label: '🐾 Hayvan', emoji: '🐾',
+    desc:  'Hayvan fotoğrafları ve ilginç gerçekler',
+    perms: 'everyone',
+    cmds: [
+      { n:'hayvan',  u:'/hayvan <tür>',   d:'Fotoğraf + ilginç gerçek (10 tür: köpek, kedi, panda, tilki...)', det:['some-random-api'], al:[], cd:'3sn' },
+      { n:'gercek',  u:'/gercek <tür>',   d:'Rastgele hayvan gerçeği (7 tür)',                                  det:['some-random-api'], al:[], cd:'3sn' },
+    ],
+  },
 };
 
 // ══════════════════════════════════════════════════════════════════════
