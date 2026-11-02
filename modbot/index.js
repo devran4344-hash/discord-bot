@@ -164,6 +164,16 @@ const { startAllCrons } = require(path.join(__dirname, 'src', 'systems', 'cronJo
 client.once('clientReady', () => {
   startAllCrons(client);
   client.guilds.cache.forEach(guild => inviteTracker.loadInvites(guild));
+
+  // Giveaway Manager — aktif çekilişleri yükle + canlı güncelleme başlat
+  try {
+    const { GiveawayManager } = require(path.join(__dirname, 'src', 'systems', 'giveawayManager'));
+    GiveawayManager.restoreGiveaways(client);
+    GiveawayManager.startLiveUpdater(client);
+    console.log(chalk.blue(`  ✔ Sistem yüklendi: ${chalk.white('giveawayManager')}`));
+  } catch (e) {
+    console.error(chalk.red('[GiveawayManager] Başlatma hatası:'), e.message);
+  }
 });
 console.log(chalk.blue(`  âœ“ Sistem yÃ¼klendi: ${chalk.white('cronJobs')}`));console.log(chalk.yellow(`\n  Toplam ${loadedCommands} komut yÃ¼klendi.`));
 console.log(chalk.yellow(`  Toplam ${eventFiles.length} event yÃ¼klendi.\n`));
