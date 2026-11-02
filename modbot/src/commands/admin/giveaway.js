@@ -270,7 +270,8 @@ function buildGiveawayEmbed(giveaway) {
 }
 
 function buildGiveawayButtons() {
-    return new ActionRowBuilder().addComponents(
+    // Row 1: Katıl + Ayrıl
+    const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('gw_join')
             .setLabel('🎉 Katıl')
@@ -279,12 +280,17 @@ function buildGiveawayButtons() {
             .setCustomId('gw_leave')
             .setLabel('👋 Ayrıl')
             .setStyle(ButtonStyle.Secondary),
+    );
+
+    // Row 2: İptal (admin only — kontrol koda bırakıldı)
+    const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('gw_cancel')
             .setLabel('🗑️ İptal Et')
-            .setStyle(ButtonStyle.Danger)
-            .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+            .setStyle(ButtonStyle.Danger),
     );
+
+    return [row1, row2];
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -508,7 +514,7 @@ module.exports = {
 
             const gwEmbed = buildGiveawayEmbed(giveaway);
             const gwBtns  = buildGiveawayButtons();
-            const msg     = await channel.send({ embeds: [gwEmbed], components: [gwBtns] });
+            const msg     = await channel.send({ embeds: [gwEmbed], components: gwBtns });
 
             giveaway.messageId = msg.id;
             await createGiveaway(giveaway);

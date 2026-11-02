@@ -25,7 +25,7 @@ async function updateEmbed(guild, messageId, client) {
 
         const { buildGiveawayEmbed, buildGiveawayButtons } = require('../commands/admin/giveaway');
         const embed = buildGiveawayEmbed(giveaway);
-        await msg.edit({ embeds: [embed], components: [buildGiveawayButtons(true)] }).catch(() => {});
+        await msg.edit({ embeds: [embed], components: buildGiveawayButtons() }).catch(() => {});
     } catch (e) {
         console.error('[GiveawayManager] updateEmbed hatası:', e.message);
     }
@@ -57,13 +57,12 @@ async function endGiveaway(guildId, messageId, client) {
         const endEmbed = buildEndedEmbed(giveaway, winners);
 
         // Reroll butonu (admin only — setDefaultMemberPermissions)
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
+        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
         const rerollRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('gw_reroll')
                 .setLabel('🔄 Reroll (Yeniden Çek)')
-                .setStyle(ButtonStyle.Primary)
-                .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+                .setStyle(ButtonStyle.Primary),
         );
 
         if (msg) {
