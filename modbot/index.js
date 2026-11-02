@@ -168,8 +168,8 @@ client.once('clientReady', () => {
   // Giveaway Manager — aktif çekilişleri yükle + canlı güncelleme başlat
   try {
     const { GiveawayManager } = require(path.join(__dirname, 'src', 'systems', 'giveawayManager'));
-    GiveawayManager.restoreGiveaways(client);
-    GiveawayManager.startLiveUpdater(client);
+    GiveawayManager.restore(client);
+    GiveawayManager.startLive(client);
     console.log(chalk.blue(`  ✔ Sistem yüklendi: ${chalk.white('giveawayManager')}`));
   } catch (e) {
     console.error(chalk.red('[GiveawayManager] Başlatma hatası:'), e.message);

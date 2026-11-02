@@ -49,8 +49,8 @@ module.exports = {
       // ── Giveaway butonları ──────────────────────────────
       if (id.startsWith('gw_')) {
         const giveawayCmd = client.commands.get('giveaway');
-        if (giveawayCmd?.handleInteraction) {
-          try { await giveawayCmd.handleInteraction(interaction, client); }
+        if (giveawayCmd?.handleButton) {
+          try { await giveawayCmd.handleButton(interaction, client); }
           catch (e) { console.error('[Giveaway Button] Hata:', e.message); }
         }
         return;
@@ -113,16 +113,6 @@ module.exports = {
     if (interaction.isStringSelectMenu()) {
       const id = interaction.customId;
 
-      // ── Giveaway select menüleri ────────────────────────
-      if (id.startsWith('gw_')) {
-        const giveawayCmd = client.commands.get('giveaway');
-        if (giveawayCmd?.handleInteraction) {
-          try { await giveawayCmd.handleInteraction(interaction, client); }
-          catch (e) { console.error('[Giveaway Select] Hata:', e.message); }
-        }
-        return;
-      }
-
       // ── Ticket türü seçimi ──
       if (id === 'ticket_type_select') {
         const ticketCmd = client.commands.get('ticket');
@@ -141,16 +131,6 @@ module.exports = {
     // ══════════════════════════════════════════════════════
     if (interaction.isModalSubmit()) {
       const id = interaction.customId;
-
-      // ── Giveaway modal'ları ─────────────────────────────
-      if (id.startsWith('gw_modal_')) {
-        const giveawayCmd = client.commands.get('giveaway');
-        if (giveawayCmd?.handleModal) {
-          try { await giveawayCmd.handleModal(interaction, client); }
-          catch (e) { console.error('[Giveaway Modal] Hata:', e.message); }
-        }
-        return;
-      }
 
       // ── Kayıt sistemi isim modal'ı ──
       if (id.startsWith('kayit_isim_modal_')) {
