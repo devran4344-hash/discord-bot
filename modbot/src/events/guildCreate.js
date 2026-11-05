@@ -1,7 +1,9 @@
 'use strict';
 
 // ╔══════════════════════════════════════════════════════════════════════╗
-// ║  guildCreate — Bot sunucuya eklenince kurucuya DM + onboarding      ║
+// ║  guildCreate — Bot sunucuya eklenince:                              ║
+// ║  1. Kanal yapısını otomatik oluştur                                 ║
+// ║  2. Kurucuya DM + onboarding paneli gönder                         ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
 const {
@@ -11,10 +13,155 @@ const {
     StringSelectMenuOptionBuilder,
     ButtonBuilder,
     ButtonStyle,
+    ChannelType,
+    PermissionFlagsBits,
 } = require('discord.js');
-const { initGuild, getSettings, saveSettings } = require('../utils/guildSettings');
+const { initGuild, saveSettings } = require('../utils/guildSettings');
 const e = require('../emojiConfig');
 
+// ══════════════════════════════════════════════════════════════════════
+//  Sunucu Kanal Yapısı
+// ══════════════════════════════════════════════════════════════════════
+const YAPI = [
+    // ── Bilgi ──────────────────────────────────────────────────────────
+    {
+        kategori: '📌 Bilgi',
+        kanallar: [
+            { isim: '📢・duyurular',    tür: ChannelType.GuildText,  sadeceBak: true  },
+            { isim: '📋・kurallar',      tür: ChannelType.GuildText,  sadeceBak: true  },
+            { isim: '🎉・etkinlikler',   tür: ChannelType.GuildText,  sadeceBak: true  },
+        ],
+    },
+    // ── Genel ──────────────────────────────────────────────────────────
+    {
+        kategori: '💬 Genel',
+        kanallar: [
+            { isim: '💬・genel',         tür: ChannelType.GuildText                   },
+            { isim: '🤖・bot-komutlar',  tür: ChannelType.GuildText                   },
+            { isim: '😂・medya',         tür: ChannelType.GuildText                   },
+            { isim: '🎵・Genel',         tür: ChannelType.GuildVoice                  },
+            { isim: '🎮・Oyun',          tür: ChannelType.GuildVoice                  },
+            { isim: '📚・Çalışma',       tür: ChannelType.GuildVoice                  },
+            { isim: '🔇・AFK',           tür: ChannelType.GuildVoice                  },
+        ],
+    },
+    // ── Destek ─────────────────────────────────────────────────────────
+    {
+        kategori: '🎫 Destek',
+        kanallar: [
+            { isim: '🎫・ticket-aç',    tür: ChannelType.GuildText,  sadeceBak: true  },
+        ],
+    },
+    // ── Loglar ─────────────────────────────────────────────────────────
+    {
+        kategori: '📊 Loglar',
+        sadeceYetkililer: true,   // @everyone göremez
+        kanallar: [
+            { isim: '💬・modsohbeti',    tür: ChannelType.GuildText                   },
+            { isim: '🔨・vectorlogs',    tür: ChannelType.GuildText                   },
+            { isim: '🔨・modlogs',       tür: ChannelType.GuildText                   },
+            { isim: '🎉・giriscikislogs',tür: ChannelType.GuildText                   },
+            { isim: '🎵・serverlogs',    tür: ChannelType.GuildText                   },
+            { isim: '🔊・seslogs',       tür: ChannelType.GuildText                   },
+            { isim: '💬・mesajlogs',     tür: ChannelType.GuildText                   },
+            { isim: '❤️・rollogs',       tür: ChannelType.GuildText                   },
+            { isim: '🤖・botlogs',       tür: ChannelType.GuildText                   },
+            { isim: '💬・spamlogs',      tür: ChannelType.GuildText                   },
+            { isim: '🔨・automodslogs',  tür: ChannelType.GuildText                   },
+            { isim: '🎫・ticketlogs',    tür: ChannelType.GuildText                   },
+        ],
+    },
+    // ── Moderasyon ─────────────────────────────────────────────────────
+    {
+        kategori: '⚙️ Moderasyon',
+        sadeceYetkililer: true,
+        kanallar: [
+            { isim: '⚙️・bot-ayarlar',  tür: ChannelType.GuildText                   },
+            { isim: '📋・mod-notlar',    tür: ChannelType.GuildText                   },
+        ],
+    },
+];
+
+// ══════════════════════════════════════════════════════════════════════
+//  Kanal Yapısı Oluşturucu
+// ══════════════════════════════════════════════════════════════════════
+async function kanallarOlustur(guild) {
+    const olusturulan = {
+        kategoriler: {},
+        kanallar: {},
+    };
+
+    console.log(`[guildCreate] ${guild.name} için kanal yapısı oluşturuluyor...`);
+
+    for (const blok of YAPI) {
+        try {
+            // Kategori izinleri
+            const kategoriIzinler = blok.sadeceYetkililer
+                ? [{ id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }]
+                : [];
+
+            // Kategori oluştur
+            const kategori = await guild.channels.create({
+                name: blok.kategori,
+                type: ChannelType.GuildCategory,
+                permissionOverwrites: kategoriIzinler,
+            });
+
+            olusturulan.kategoriler[blok.kategori] = kategori.id;
+            console.log(`  ✅ Kategori: ${blok.kategori}`);
+
+            // Kanalları oluştur
+            for (const kanal of blok.kanallar) {
+                try {
+                    const kanalIzinler = [];
+
+                    // Sadece bak (mesaj gönderemesin)
+                    if (kanal.sadeceBak) {
+                        kanalIzinler.push({
+                            id:   guild.roles.everyone.id,
+                            deny: [PermissionFlagsBits.SendMessages],
+                        });
+                    }
+
+                    // Sadece yetkililer görsün
+                    if (blok.sadeceYetkililer) {
+                        kanalIzinler.push({
+                            id:   guild.roles.everyone.id,
+                            deny: [PermissionFlagsBits.ViewChannel],
+                        });
+                    }
+
+                    const yeniKanal = await guild.channels.create({
+                        name:   kanal.isim,
+                        type:   kanal.tür,
+                        parent: kategori.id,
+                        permissionOverwrites: kanalIzinler,
+                    });
+
+                    olusturulan.kanallar[kanal.isim] = yeniKanal.id;
+
+                    // Rate limit için küçük bekleme
+                    await new Promise(r => setTimeout(r, 500));
+                } catch (err) {
+                    console.error(`  ❌ Kanal oluşturulamadı (${kanal.isim}): ${err.message}`);
+                }
+            }
+
+            // Kategoriler arası bekleme
+            await new Promise(r => setTimeout(r, 1000));
+
+        } catch (err) {
+            console.error(`  ❌ Kategori oluşturulamadı (${blok.kategori}): ${err.message}`);
+        }
+    }
+
+    console.log(`[guildCreate] Kanal yapısı tamamlandı.`);
+    return olusturulan;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  ANA EVENT
+// ══════════════════════════════════════════════════════════════════════
 module.exports = {
     name: 'guildCreate',
     once: false,
@@ -25,7 +172,31 @@ module.exports = {
         // Firebase'de sunucu kaydı oluştur
         await initGuild(guild.id);
 
-        // Kurucuyu bul
+        // ── 1. Kanal yapısını oluştur ──────────────────────────────────
+        let kanallar = {};
+        try {
+            const sonuc = await kanallarOlustur(guild);
+            kanallar = sonuc.kanallar;
+
+            // Oluşturulan log kanallarını guildSettings'e kaydet
+            const patch = {};
+            if (kanallar['🔨・modlogs'])        patch['channels.modLog']        = kanallar['🔨・modlogs'];
+            if (kanallar['🎵・serverlogs'])      patch['channels.serverLog']     = kanallar['🎵・serverlogs'];
+            if (kanallar['🎫・ticketlogs'])      patch['channels.ticketLog']     = kanallar['🎫・ticketlogs'];
+            if (kanallar['🎉・giriscikislogs'])  patch['channels.welcomeChannel']= kanallar['🎉・giriscikislogs'];
+            if (kanallar['🤖・botlogs'])         patch['channels.botLog']        = kanallar['🤖・botlogs'];
+            if (kanallar['💬・spamlogs'])        patch['channels.spamLog']       = kanallar['💬・spamlogs'];
+            if (kanallar['🔨・automodslogs'])    patch['channels.autoModLog']    = kanallar['🔨・automodslogs'];
+
+            if (Object.keys(patch).length > 0) {
+                await saveSettings(guild.id, patch);
+                console.log(`[guildCreate] Log kanalları ayarlara kaydedildi.`);
+            }
+        } catch (err) {
+            console.error(`[guildCreate] Kanal oluşturma hatası: ${err.message}`);
+        }
+
+        // ── 2. Kurucuyu bul ────────────────────────────────────────────
         let owner = null;
         try {
             owner = await guild.fetchOwner();
@@ -34,39 +205,30 @@ module.exports = {
             return;
         }
 
-        // Hoşgeldin DM embed'i
+        // ── 3. Kurucuya DM gönder ──────────────────────────────────────
         const welcomeEmbed = new EmbedBuilder()
             .setColor(0x57f287)
             .setAuthor({
                 name: 'BlackNetwork Bot — Kurulum Sihirbazı',
                 iconURL: client.user.displayAvatarURL({ dynamic: true }),
             })
-            .setTitle(`${e.success || '✅'} Merhaba, **${owner.user.username}**!`)
+            .setTitle(`✅ Merhaba, **${owner.user.username}**!`)
             .setDescription(
                 `**BlackNetwork Bot** sunucuna eklendi! 🎉\n\n` +
                 `> **Sunucu:** ${guild.name}\n` +
                 `> **Üye:** ${guild.memberCount} kişi\n\n` +
-                `Botu kullanmaya başlamadan önce birkaç temel ayar yapman gerekiyor.\n` +
-                `Aşağıdan hangi sistemleri aktif etmek istediğini seç.`
+                `📁 Kanal yapısı otomatik oluşturuldu!\n` +
+                `Aşağıdan aktif etmek istediğin sistemleri seç.`
             )
             .addFields(
                 {
-                    name: `${e.info || 'ℹ️'} Mevcut Sistemler`,
-                    value: [
-                        `> 🛡️ **Anti-Spam** — Spam koruması`,
-                        `> 🔗 **Anti-Link** — İzinsiz link engelleme`,
-                        `> 🚨 **Anti-Raid** — Toplu katılım koruması`,
-                        `> 🤬 **Küfür Filtresi** — Otomatik küfür silme + uyarı`,
-                        `> 🎫 **Ticket** — Destek ticket sistemi`,
-                        `> 👋 **Hoşgeldin/Veda** — Üye karşılama mesajları`,
-                        `> ⚠️ **Uyarı Sistemi** — Warn, mute, ban zinciri`,
-                        `> 📊 **Moderasyon Logları** — Tüm işlemleri kaydet`,
-                    ].join('\n'),
+                    name: '📁 Oluşturulan Yapı',
+                    value: YAPI.map(b => `> 📂 **${b.kategori}** — ${b.kanallar.length} kanal`).join('\n'),
                     inline: false,
                 },
                 {
-                    name: `${e.warning || '⚠️'} Önemli`,
-                    value: `> Ayarları daha sonra sunucuda \`/ayarlar\` komutuyla değiştirebilirsin.\n> Bu komutu yalnızca **sen** (sunucu kurucusu) kullanabilirsin.`,
+                    name: '⚙️ Sonraki Adım',
+                    value: `> Sunucuda \`/ayarlar\` komutunu kullanarak\n> roller ve diğer ayarları yapabilirsin.`,
                     inline: false,
                 }
             )
@@ -83,47 +245,38 @@ module.exports = {
             .addOptions(
                 new StringSelectMenuOptionBuilder()
                     .setLabel('🛡️ Anti-Spam').setValue('antiSpam')
-                    .setDescription('Spam yapan kullanıcıları otomatik cezalandır')
-                    .setDefault(true),
+                    .setDescription('Spam koruması').setDefault(true),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('🔗 Anti-Link').setValue('antiLink')
-                    .setDescription('İzinsiz link ve davet linklerini sil')
-                    .setDefault(true),
+                    .setDescription('İzinsiz link engelleme').setDefault(true),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('🚨 Anti-Raid').setValue('antiRaid')
-                    .setDescription('Toplu katılım saldırılarına karşı koru')
-                    .setDefault(false),
+                    .setDescription('Toplu katılım koruması').setDefault(false),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('🤬 Küfür Filtresi').setValue('wordFilter')
-                    .setDescription('Küfürleri otomatik sil ve kullanıcıyı uyar')
-                    .setDefault(true),
+                    .setDescription('Otomatik küfür silme').setDefault(true),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('🎫 Ticket Sistemi').setValue('ticket')
-                    .setDescription('Üyeler destek talebi oluşturabilsin')
-                    .setDefault(false),
+                    .setDescription('Destek ticket sistemi').setDefault(false),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('👋 Hoşgeldin/Veda').setValue('welcomeMsg')
-                    .setDescription('Yeni üyelere karşılama mesajı gönder')
-                    .setDefault(false),
+                    .setDescription('Üye karşılama mesajları').setDefault(false),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('⚠️ Uyarı Sistemi').setValue('warnSystem')
-                    .setDescription('Moderatörler uyarı verebilsin')
-                    .setDefault(true),
+                    .setDescription('Moderatörler uyarı verebilsin').setDefault(true),
                 new StringSelectMenuOptionBuilder()
                     .setLabel('📊 Moderasyon Logları').setValue('modLogs')
-                    .setDescription('Ban/kick/mute işlemlerini log kanalına kaydet')
-                    .setDefault(true),
+                    .setDescription('Tüm işlemleri log kanalına kaydet').setDefault(true),
             );
 
-        // Devam butonu
         const continueBtn = new ButtonBuilder()
             .setCustomId(`onboard_continue_${guild.id}`)
-            .setLabel('✅ Devam Et — Rol & Kanal Ayarları')
+            .setLabel('✅ Sistemleri Kaydet')
             .setStyle(ButtonStyle.Success);
 
         const skipBtn = new ButtonBuilder()
             .setCustomId(`onboard_skip_${guild.id}`)
-            .setLabel('⏭️ Şimdilik Atla')
+            .setLabel('⏭️ Atla')
             .setStyle(ButtonStyle.Secondary);
 
         const row1 = new ActionRowBuilder().addComponents(systemMenu);
@@ -136,93 +289,56 @@ module.exports = {
                 components: [row1, row2],
             });
 
-            // DM collector — 10 dakika bekle
-            const collector = dmMsg.createMessageComponentCollector({ time: 600_000 });
-
-            // Seçilen sistemleri geçici sakla
             let selectedSystems = ['antiSpam', 'antiLink', 'wordFilter', 'warnSystem', 'modLogs'];
+            const collector = dmMsg.createMessageComponentCollector({ time: 600_000 });
 
             collector.on('collect', async (i) => {
                 const cid = i.customId;
 
-                // Sistem seçimi
                 if (cid === `onboard_systems_${guild.id}`) {
                     selectedSystems = i.values;
-                    await i.reply({
-                        content: `✅ **${selectedSystems.length}** sistem seçildi. Devam etmek için "Devam Et" butonuna bas.`,
-                        flags: 64,
-                    });
+                    await i.reply({ content: `✅ **${selectedSystems.length}** sistem seçildi.`, flags: 64 });
                     return;
                 }
 
-                // Atla
                 if (cid === `onboard_skip_${guild.id}`) {
                     collector.stop('skip');
                     await i.update({
                         embeds: [new EmbedBuilder()
                             .setColor(0xfee75c)
-                            .setTitle('⏭️ Kurulum Atlandı')
-                            .setDescription(
-                                `Kurulumu daha sonra sunucunda \`/ayarlar\` komutuyla tamamlayabilirsin.\n\n` +
-                                `Varsayılan ayarlar uygulandı.`
-                            )
+                            .setTitle('⏭️ Atlandı')
+                            .setDescription('Varsayılan ayarlar uygulandı. `/ayarlar` ile değiştirebilirsin.')
                             .setTimestamp()],
                         components: [],
                     });
                     return;
                 }
 
-                // Devam et — 2. adım: Rol & Kanal ayarları
                 if (cid === `onboard_continue_${guild.id}`) {
-                    // Sistemleri kaydet
-                    const systemSettings = {
-                        'systems.antiSpam':   selectedSystems.includes('antiSpam'),
-                        'systems.antiLink':   selectedSystems.includes('antiLink'),
-                        'systems.antiRaid':   selectedSystems.includes('antiRaid'),
-                        'systems.wordFilter': selectedSystems.includes('wordFilter'),
-                        'systems.ticket':     selectedSystems.includes('ticket'),
-                        'systems.welcomeMsg': selectedSystems.includes('welcomeMsg'),
-                        'systems.modLogs':    selectedSystems.includes('modLogs'),
-                        setupDone: false,
-                    };
-
-                    await saveSettings(guild.id, systemSettings);
-
-                    // 2. adım embed'i
-                    const step2Embed = new EmbedBuilder()
-                        .setColor(0x5865f2)
-                        .setTitle('⚙️ Adım 2 — Rol & Kanal Ayarları')
-                        .setDescription(
-                            `Sistemler kaydedildi! ✅\n\n` +
-                            `Şimdi sunucundaki **rolleri** ve **kanalları** ayarlamak için \`/ayarlar\` komutunu kullan.\n\n` +
-                            `**Ayarlamanız önerilen şeyler:**\n` +
-                            `> 👮 Moderatör rolü\n` +
-                            `> 🛡️ Admin rolü\n` +
-                            `> 📢 Log kanalı\n` +
-                            `> 🎫 Ticket kategorisi *(ticket aktifse)*\n` +
-                            `> 👋 Hoşgeldin kanalı *(hoşgeldin aktifse)*`
-                        )
-                        .addFields({
-                            name: '✅ Seçilen Sistemler',
-                            value: selectedSystems.length > 0
-                                ? selectedSystems.map(s => `> ✅ ${systemLabels[s] || s}`).join('\n')
-                                : '> Hiçbir sistem seçilmedi.',
-                            inline: false,
-                        })
-                        .setFooter({ text: 'Sunucuda /ayarlar yazarak devam edebilirsin.' })
-                        .setTimestamp();
-
-                    const gotoBtn = new ButtonBuilder()
-                        .setLabel('📖 Kurulum Rehberini Görüntüle')
-                        .setStyle(ButtonStyle.Link)
-                        .setURL('https://discord.gg/example');
+                    const allSystems = ['antiSpam','antiLink','antiRaid','wordFilter','ticket','welcomeMsg','warnSystem','modLogs'];
+                    const patch = {};
+                    for (const sys of allSystems) {
+                        patch[`systems.${sys}`] = selectedSystems.includes(sys);
+                    }
+                    patch.setupDone = true;
+                    patch.setupAt   = Date.now();
+                    await saveSettings(guild.id, patch);
 
                     await i.update({
-                        embeds: [step2Embed],
-                        components: [new ActionRowBuilder().addComponents(gotoBtn)],
+                        embeds: [new EmbedBuilder()
+                            .setColor(0x57f287)
+                            .setTitle('✅ Kurulum Tamamlandı!')
+                            .setDescription(
+                                `Ayarlar kaydedildi!\n\n` +
+                                `**Seçilen sistemler:**\n` +
+                                allSystems.map(s =>
+                                    `> ${selectedSystems.includes(s) ? '🟢' : '🔴'} ${sistemEtiketleri[s] || s}`
+                                ).join('\n') +
+                                `\n\n> Sunucuda \`/ayarlar\` ile roller ve kanalları ayarlayabilirsin.`
+                            )
+                            .setTimestamp()],
+                        components: [],
                     });
-
-                    await saveSettings(guild.id, { setupDone: true, setupAt: Date.now() });
                     collector.stop('done');
                 }
             });
@@ -234,21 +350,20 @@ module.exports = {
             });
 
         } catch (err) {
-            console.error(`[guildCreate] DM gönderilemedi (${guild.name}):`, err.message);
-            // DM kapalıysa sunucunun ilk kanalına mesaj göndermeyi dene
+            console.error(`[guildCreate] DM gönderilemedi: ${err.message}`);
+            // Sistem kanalına mesaj gönder
             try {
                 const ch = guild.systemChannel || guild.channels.cache
                     .filter(c => c.type === 0 && c.permissionsFor(guild.members.me)?.has('SendMessages'))
                     .first();
-
                 if (ch) {
                     await ch.send({
                         embeds: [new EmbedBuilder()
                             .setColor(0xfee75c)
                             .setTitle('👋 BlackNetwork Bot Kurulumu')
                             .setDescription(
-                                `Merhaba! Kurulum için sunucu kurucusunun bana DM atması gerekiyor.\n` +
-                                `DM ayarlarını açıp beni kickle ve tekrar ekle, veya sunucuda \`/ayarlar\` komutunu kullan.`
+                                `Merhaba! Kurulum için sunucu kurucusunun DM\'lerini açması gerekiyor.\n` +
+                                `Şimdilik \`/ayarlar\` komutuyla ayarları yapabilirsin.`
                             )
                             .setTimestamp()],
                     });
@@ -258,8 +373,7 @@ module.exports = {
     },
 };
 
-// Sistem etiketleri
-const systemLabels = {
+const sistemEtiketleri = {
     antiSpam:   '🛡️ Anti-Spam',
     antiLink:   '🔗 Anti-Link',
     antiRaid:   '🚨 Anti-Raid',
@@ -267,5 +381,5 @@ const systemLabels = {
     ticket:     '🎫 Ticket Sistemi',
     welcomeMsg: '👋 Hoşgeldin/Veda',
     warnSystem: '⚠️ Uyarı Sistemi',
-    modLogs:    '📊 Moderasyon Logları',
+    modLogs:    '📊 Mod Logları',
 };
