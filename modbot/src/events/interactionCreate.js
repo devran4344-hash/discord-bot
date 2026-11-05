@@ -56,6 +56,26 @@ module.exports = {
         return;
       }
 
+      // ── /ayarlar butonları ──────────────────────────────
+      if (id.startsWith('ayar_')) {
+        const ayarlarCmd = client.commands.get('ayarlar');
+        if (ayarlarCmd?.handleButton) {
+          try { await ayarlarCmd.handleButton(interaction, client); }
+          catch (e) { console.error('[Ayarlar Button] Hata:', e.message); }
+        }
+        return;
+      }
+
+      // ── /destek owner butonları ─────────────────────────
+      if (id.startsWith('destek_')) {
+        const destekCmd = client.commands.get('destek');
+        if (destekCmd?.handleOwnerButton) {
+          try { await destekCmd.handleOwnerButton(interaction, client); }
+          catch (e) { console.error('[Destek Button] Hata:', e.message); }
+        }
+        return;
+      }
+
       // ── Kayıt formu butonu (kullanıcı kendi kaydolur) ──
       if (id === 'kayit_buton') {
         const modal = new ModalBuilder()
@@ -113,6 +133,22 @@ module.exports = {
     if (interaction.isStringSelectMenu()) {
       const id = interaction.customId;
 
+      // ── Ayarlar select menüleri ─────────────────────────
+      if (id.startsWith('ayar_')) {
+        const ayarlarCmd = client.commands.get('ayarlar');
+        if (ayarlarCmd?.handleSelect) {
+          try { await ayarlarCmd.handleSelect(interaction, client); }
+          catch (e) { console.error('[Ayarlar Select] Hata:', e.message); }
+        }
+        return;
+      }
+
+      // ── Onboarding select menüleri ──────────────────────
+      if (id.startsWith('onboard_')) {
+        // guildCreate event içindeki collector hallediyor
+        return;
+      }
+
       // ── Ticket türü seçimi ──
       if (id === 'ticket_type_select') {
         const ticketCmd = client.commands.get('ticket');
@@ -131,6 +167,26 @@ module.exports = {
     // ══════════════════════════════════════════════════════
     if (interaction.isModalSubmit()) {
       const id = interaction.customId;
+
+      // ── Ayarlar modal'ları ──────────────────────────────
+      if (id.startsWith('ayar_modal_')) {
+        const ayarlarCmd = client.commands.get('ayarlar');
+        if (ayarlarCmd?.handleModal) {
+          try { await ayarlarCmd.handleModal(interaction, client); }
+          catch (e) { console.error('[Ayarlar Modal] Hata:', e.message); }
+        }
+        return;
+      }
+
+      // ── Destek owner yanıt modal'ı ──────────────────────
+      if (id.startsWith('destek_yanit_modal_')) {
+        const destekCmd = client.commands.get('destek');
+        if (destekCmd?.handleOwnerModal) {
+          try { await destekCmd.handleOwnerModal(interaction, client); }
+          catch (e) { console.error('[Destek Modal] Hata:', e.message); }
+        }
+        return;
+      }
 
       // ── Kayıt sistemi isim modal'ı ──
       if (id.startsWith('kayit_isim_modal_')) {
